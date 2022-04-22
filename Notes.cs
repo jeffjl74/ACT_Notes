@@ -51,7 +51,6 @@ namespace ACT_Notes
 
         ImageList treeImages = new ImageList();     //category folder images
 
-        Color activeBackground = Color.LightGreen;  //background for a category that contains active triggers
         Color defaultBackground = Color.White;      //background default for the rich text box
         Color foundBackground = Color.Yellow;       //background for a found word
 
@@ -142,32 +141,6 @@ namespace ACT_Notes
             if (currentZone != ActGlobals.oFormActMain.CurrentZone)
             {
                 currentZone = ActGlobals.oFormActMain.CurrentZone;
-                //TreeNode[] nodes = treeViewZones.Nodes.Find(currentZone, false);
-                //if (nodes.Length > 0)
-                //{
-                //    TreeNode zoneNode = nodes[0];
-                //    Zone zone = zoneNode.Tag as Zone;
-                //    TreeNode mobNode = null;
-                //    if (zoneNode.Nodes.Count > 0)
-                //    {
-                //        mobNode = zoneNode.Nodes[0];
-                //        if (zone != null)
-                //        {
-                //            foreach (Mob m in zone.Mobs)
-                //            {
-                //                string[] names = m.MobName.Split(',');
-                //                foreach (string name in names)
-                //                {
-                //                    enemies.Add(name.Trim());
-                //                }
-                //            }
-                //        }
-                //    }
-                //    if (mobNode == null || zone.Notes != null)
-                //        treeViewZones.SelectedNode = zoneNode;
-                //    else
-                //        treeViewZones.SelectedNode = mobNode;
-                //}
                 TreeNode node = BuildEnemyList();
                 if (node != null)
                 {
@@ -1697,7 +1670,7 @@ namespace ACT_Notes
             linkLabel1.LinkVisited = true;
             //Call the Process.Start method to open the default browser
             //with a URL:
-            System.Diagnostics.Process.Start("https://github.com/jeffjl74/ACT_TriggerTree#overview");
+            System.Diagnostics.Process.Start("https://github.com/jeffjl74/ACT_Notes#act_notes_plugin");
         }
 
         private void buttonCompare_Click(object sender, EventArgs e)
