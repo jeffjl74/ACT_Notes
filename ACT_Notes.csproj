@@ -1,0 +1,148 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30729</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>ACT_Notes</RootNamespace>
+    <AssemblyName>Notes</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <StartupObject>
+    </StartupObject>
+    <FileUpgradeFlags>
+    </FileUpgradeFlags>
+    <UpgradeBackupLocation>
+    </UpgradeBackupLocation>
+    <OldToolsVersion>3.5</OldToolsVersion>
+    <ProjectGuid>{1F0209D0-D9A2-4B37-9AB2-C2D40AF7D7D0}</ProjectGuid>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <StartAction>Program</StartAction>
+    <StartProgram>C:\Program Files\Advanced Combat Tracker\Advanced Combat Tracker.exe</StartProgram>
+    <StartWorkingDirectory>C:\Program Files\Advanced Combat Tracker\</StartWorkingDirectory>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+  <ItemGroup>
+    <Reference Include="Advanced Combat Tracker, Version=2.10.0.215, Culture=neutral, PublicKeyToken=a946b61e93d97868, processorArchitecture=x86">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>C:\Program Files (x86)\Advanced Combat Tracker\Advanced Combat Tracker.exe</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Windows.Forms.DataVisualization" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Diff.cs" />
+    <Compile Include="Differences.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Differences.Designer.cs">
+      <DependentUpon>Differences.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Mob.cs" />
+    <Compile Include="PasteOption.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PasteOption.Designer.cs">
+      <DependentUpon>PasteOption.cs</DependentUpon>
+    </Compile>
+    <Compile Include="RichEditCtrl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="RichEditCtrl.designer.cs">
+      <DependentUpon>RichEditCtrl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Notes.Designer.cs">
+      <DependentUpon>Notes.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="SimpleMessageBox.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SimpleMessageBox.designer.cs">
+      <DependentUpon>SimpleMessageBox.cs</DependentUpon>
+    </Compile>
+    <Compile Include="TextBoxX.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="TextBoxX.designer.cs">
+      <DependentUpon>TextBoxX.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Notes.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="TreeNodeSorter.cs" />
+    <Compile Include="TreeViewExtension.cs" />
+    <Compile Include="XmlCopyForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="XmlCopyForm.Designer.cs">
+      <DependentUpon>XmlCopyForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Zone.cs" />
+    <Compile Include="ZoneList.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Differences.resx">
+      <DependentUpon>Differences.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PasteOption.resx">
+      <DependentUpon>PasteOption.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="RichEditCtrl.resx">
+      <DependentUpon>RichEditCtrl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Notes.resx">
+      <DependentUpon>Notes.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="XmlCopyForm.resx">
+      <DependentUpon>XmlCopyForm.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup />
+  <PropertyGroup>
+    <PostBuildEvent>
+    </PostBuildEvent>
+  </PropertyGroup>
+</Project>
