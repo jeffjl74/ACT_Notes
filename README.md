@@ -9,7 +9,7 @@ All entries are user-generated, but can be shared using ACT's XML sharing mechan
 
 An example is shown below.
 
-![Overview](images/overview.png)
+![Overview](images/Overview.png)
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
 The **[Add Mob]** button creates a new mob in the currently selected zone.
