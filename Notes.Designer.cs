@@ -55,18 +55,17 @@ namespace ACT_Notes
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.contextMenuStripZone = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.copyToXMLToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.deleteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.label1 = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
             this.linkLabel1 = new System.Windows.Forms.LinkLabel();
             this.label2 = new System.Windows.Forms.Label();
-            this.exportRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             this.textBoxZoneFind = new ACT_Notes.TextBoxX();
             this.richEditCtrl1 = new ACT_Notes.EditCtrl();
             this.textBoxEditFind = new ACT_Notes.TextBoxX();
-            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -349,6 +348,14 @@ namespace ACT_Notes
             this.copyToXMLToolStripMenuItem.ToolTipText = "Open the XML share dialog";
             this.copyToXMLToolStripMenuItem.Click += new System.EventHandler(this.copyToXMLToolStripMenuItem_Click);
             // 
+            // exportRTFToolStripMenuItem
+            // 
+            this.exportRTFToolStripMenuItem.Name = "exportRTFToolStripMenuItem";
+            this.exportRTFToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.exportRTFToolStripMenuItem.Text = "Export RTF...";
+            this.exportRTFToolStripMenuItem.ToolTipText = "Export to a WordPad file";
+            this.exportRTFToolStripMenuItem.Click += new System.EventHandler(this.exportRTFToolStripMenuItem_Click);
+            // 
             // toolStripSeparator1
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
@@ -406,17 +413,10 @@ namespace ACT_Notes
             this.label2.TabIndex = 1;
             this.label2.Text = "Right-click a tree node for options.";
             // 
-            // exportRTFToolStripMenuItem
+            // saveFileDialog1
             // 
-            this.exportRTFToolStripMenuItem.Name = "exportRTFToolStripMenuItem";
-            this.exportRTFToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
-            this.exportRTFToolStripMenuItem.Text = "Export RTF...";
-            this.exportRTFToolStripMenuItem.ToolTipText = "Export to a WordPad file";
-            this.exportRTFToolStripMenuItem.Click += new System.EventHandler(this.exportRTFToolStripMenuItem_Click);
-            // 
-            // openFileDialog1
-            // 
-            this.openFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
+            this.saveFileDialog1.DefaultExt = "rtf";
+            this.saveFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
             // 
             // textBoxZoneFind
             // 
@@ -452,11 +452,6 @@ namespace ACT_Notes
         "name");
             this.textBoxEditFind.TextChanged += new System.EventHandler(this.textBoxTextFind_TextChanged);
             this.textBoxEditFind.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBoxEditFind_KeyDown);
-            // 
-            // saveFileDialog1
-            // 
-            this.saveFileDialog1.DefaultExt = "rtf";
-            this.saveFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
             // 
             // Notes
             // 
@@ -522,7 +517,6 @@ namespace ACT_Notes
         private RadioButton radioButtonAppend;
         private RadioButton radioButtonAccept;
         private ToolStripMenuItem exportRTFToolStripMenuItem;
-        private OpenFileDialog openFileDialog1;
         private SaveFileDialog saveFileDialog1;
     }
 }

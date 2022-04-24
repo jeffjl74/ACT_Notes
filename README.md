@@ -69,7 +69,7 @@ and chooses the supposed prefix, `/g` or `/r`. This can be changed by selecting 
 To paste in a different channel, use the `custom` choice. For example, if you wanted to paste to the guild, you would select the `custom` button and enter `/gu` in the textbox. The selected prefix is saved for the zone.
 
 ### Note Segmenting
-EQII can only paste around 250 characters at a time in a chat window, and only allows about 1000 characters per line in a macro. Thus, even a small shared note requires multiple sections.
+EQII can only paste around 250 characters at a time in a chat window, and allows about 1000 characters per line and 16 lines in a macro. Even a small shared note requires multiple sections.
 
 The plugin automatically breaks a note into appropriate sharable sizes.
 
@@ -90,13 +90,13 @@ The plugin's **[Macro]** button generally takes fewer steps to share a note. Pre
 ![macro](images/macro.gif)
 
 #### Section Reception
-The receiver of the note needs to accept each section.
+The receiver of the note needs to accept each section. A single macro can contain up to 16 sections.
 
 If lots of sections arrive faster than you can click the ACT `Add Now` button for XML shares,
 you can still accept them on ACT's `Options` tab, `Configuration Import/Export` heading,
 `XML Share Snippets` section. Select each one listed in the yellow box and press the **[Import Above Data]** under the white box. **Note:** you can bypass the `Add Now` button for trusted players by adding them to the `Automatically accept data from` in the green list.
 
-
+When using macros, all sections from each macro should be accepted before another macro is shared to avoid mixing sections between macros. For example, make sure all sections from `note-macro1.txt` have been accepted before sharing `note-macro2.txt`
 
 ### Previous Note Replacement
 If the receiving player does not have an existing note for the incoming zone or mob, 
@@ -105,10 +105,11 @@ the plugin creates the appropriate entities.
 The plugin provides several options for receiving shared notes when the receiving player already has a note for that zone or mob.
 
 ![append](images/incoming.png)
-* The incoming note can be appended to the existing note.
-* The incoming note can replace the existing note.
-* The plugin can prompt for whether to append to or replace the existing note, or ignore the incoming note.
-* The existing note can replace the incoming note if the sender is on the receiver's whitelist.
+
+* **Append**: The incoming note will be appended to the existing note.
+* **Replace**: The incoming note will replace the existing note.
+* **Ask**: The plugin will prompt for whether to append, replace, or ignore the incoming note.
+* **Accept**: The existing note will replace the incoming note if the sender is on the receiver's whitelist.
   * The note is appended if the sender is not whitelisted.
   * This option is not present if the user's whitelist is empty.
 

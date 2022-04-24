@@ -5,38 +5,49 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.Xml.Serialization;
 using System.Linq;
-using System.Security.Policy;
-using System.Diagnostics;
+using System.Threading;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyVersion("0.9.0.0")]
 
 namespace ACT_Notes
 {
     public partial class Notes : UserControl, IActPluginV1
 	{
+        const string helpUlr = "https://github.com/jeffjl74/ACT_Notes#act-notes-plugin";
+
+        // the data
         ZoneList zoneList = new ZoneList();
         XmlSerializer xmlSerializer;
+
+        // zone change support
         System.Timers.Timer zoneTimer = new System.Timers.Timer();
         string currentZone = string.Empty;
-        string autoNodeName = string.Empty;
+        //tree enemies for the selected zone
         List<string> enemies = new List<string>();
+
         WindowsFormsSynchronizationContext mUiContext = new WindowsFormsSynchronizationContext();
-        Point clickedZonePoint;
+        
+        // tree node search
         List<TreeNode> foundNodes = new List<TreeNode>();
         int foundNodesIndex = 0;
         int foundZoneIndex = 0;
-        int foundMobIndex = 0;
+
+        // text find in zone notes and mob notes
         bool foundZoneNeedMobs = false;
+        int foundMobIndex = 0;
+        Color defaultBackground = Color.White;      //background default for the rich text box
+        Color foundBackground = Color.Yellow;       //background for a found word
+
+        // new node support
         const string newMob = "New Mob";
         const string newZone = "New Zone";
+        string autoNodeName = string.Empty;         //when selecting from the ACT main tab
 
         // xml share
         static public string XmlSnippetType = "Note";
@@ -49,15 +60,13 @@ namespace ACT_Notes
         string[] xmlSections;
         bool[] packetTrack;
 
-        ImageList treeImages = new ImageList();     //category folder images
+        ImageList treeImages = new ImageList();     //tree folder images
 
-        Color defaultBackground = Color.White;      //background default for the rich text box
-        Color foundBackground = Color.Yellow;       //background for a found word
-
+        // context menu support
         TreeNode clickedZoneNode = null;
+        Point clickedZonePoint;
 
         bool neverBeenVisible = true;               //save the splitter location only if it has been initialized 
-
 
         Label lblStatus;                            // The status label that appears in ACT's Plugin tab
 
@@ -199,7 +208,7 @@ namespace ACT_Notes
                         + @"\line (If there is an update to ACT"
                         + @"\line you should click No and update ACT first.)"
                         + @"\line\line Release notes at project website:"
-                        + @"{\line\ql https://github.com/jeffjl74/ACT_TriggerTree#overview}"
+                        + @"{\line\ql " + helpUlr + "}"
                         , "Notes New Version", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     if (result == DialogResult.Yes)
                     {
@@ -502,11 +511,14 @@ namespace ACT_Notes
             {
                 try
                 {
-                    var clb = option[0].Controls.Find("clbShareTrusted", true);
-                    CheckedListBox.CheckedItemCollection players = ((CheckedListBox)clb[0]).CheckedItems;
-                    foreach (var item in players)
+                    Control[] clb = option[0].Controls.Find("clbShareTrusted", true);
+                    if (clb.Length > 0)
                     {
-                        whitelist.Add(item.ToString());
+                        CheckedListBox.CheckedItemCollection players = ((CheckedListBox)clb[0]).CheckedItems;
+                        foreach (var item in players)
+                        {
+                            whitelist.Add(item.ToString());
+                        }
                     }
                 }
                 catch { } //just give up if something changed in the options tree
@@ -1670,7 +1682,7 @@ namespace ACT_Notes
             linkLabel1.LinkVisited = true;
             //Call the Process.Start method to open the default browser
             //with a URL:
-            System.Diagnostics.Process.Start("https://github.com/jeffjl74/ACT_Notes#act_notes_plugin");
+            System.Diagnostics.Process.Start("https://github.com/jeffjl74/ACT_Notes#act-notes-plugin");
         }
 
         private void buttonCompare_Click(object sender, EventArgs e)
