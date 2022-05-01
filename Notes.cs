@@ -13,7 +13,7 @@ using System.Threading;
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("0.9.0.0")]
+[assembly: AssemblyVersion("1.0.0.0")]
 
 namespace ACT_Notes
 {
@@ -113,7 +113,7 @@ namespace ACT_Notes
             {
                 // If ACT is set to automatically check for updates, check for updates to the plugin
                 // If we don't put this on a separate thread, web latency will delay the plugin init phase
-                //new Thread(new ThreadStart(oFormActMain_UpdateCheckClicked)).Start();
+                new Thread(new ThreadStart(oFormActMain_UpdateCheckClicked)).Start();
             }
 
             lblStatus.Text = "Plugin Started";
@@ -193,7 +193,7 @@ namespace ACT_Notes
 
         void oFormActMain_UpdateCheckClicked()
         {
-            int pluginId = 800;
+            int pluginId = 89;
 
             try
             {
