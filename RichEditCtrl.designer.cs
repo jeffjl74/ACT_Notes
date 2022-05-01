@@ -47,6 +47,7 @@ namespace ACT_Notes
             this.tbrBold = new System.Windows.Forms.ToolStripButton();
             this.tbrItalic = new System.Windows.Forms.ToolStripButton();
             this.tbrUnderline = new System.Windows.Forms.ToolStripButton();
+            this.tbrStrikethrough = new System.Windows.Forms.ToolStripButton();
             this.ToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
             this.tbrImage = new System.Windows.Forms.ToolStripButton();
             this.toolStripSeparator8 = new System.Windows.Forms.ToolStripSeparator();
@@ -54,7 +55,6 @@ namespace ACT_Notes
             this.ColorDialog1 = new System.Windows.Forms.ColorDialog();
             this.rtbDoc = new System.Windows.Forms.RichTextBox();
             this.OpenFileDialog1 = new System.Windows.Forms.OpenFileDialog();
-            this.tbrStrikethrough = new System.Windows.Forms.ToolStripButton();
             this.ToolStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -232,6 +232,17 @@ namespace ACT_Notes
             this.tbrUnderline.Text = "Underline";
             this.tbrUnderline.Click += new System.EventHandler(this.UnderlineToolStripMenuItem_Click);
             // 
+            // tbrStrikethrough
+            // 
+            this.tbrStrikethrough.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.tbrStrikethrough.Image = ((System.Drawing.Image)(resources.GetObject("tbrStrikethrough.Image")));
+            this.tbrStrikethrough.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.tbrStrikethrough.Name = "tbrStrikethrough";
+            this.tbrStrikethrough.Size = new System.Drawing.Size(23, 22);
+            this.tbrStrikethrough.Text = "Strikethrough";
+            this.tbrStrikethrough.ToolTipText = "Strikethrough";
+            this.tbrStrikethrough.Click += new System.EventHandler(this.tbrStrikethrough_Click);
+            // 
             // ToolStripSeparator3
             // 
             this.ToolStripSeparator3.Name = "ToolStripSeparator3";
@@ -269,16 +280,6 @@ namespace ACT_Notes
             // OpenFileDialog1
             // 
             this.OpenFileDialog1.FileName = "OpenFileDialog1";
-            // 
-            // tbrStrikethrough
-            // 
-            this.tbrStrikethrough.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.tbrStrikethrough.Image = ((System.Drawing.Image)(resources.GetObject("tbrStrikethrough.Image")));
-            this.tbrStrikethrough.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.tbrStrikethrough.Name = "tbrStrikethrough";
-            this.tbrStrikethrough.Size = new System.Drawing.Size(23, 22);
-            this.tbrStrikethrough.Text = "toolStripButton1";
-            this.tbrStrikethrough.Click += new System.EventHandler(this.tbrStrikethrough_Click);
             // 
             // EditCtrl
             // 
