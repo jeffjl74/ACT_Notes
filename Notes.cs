@@ -202,7 +202,8 @@ namespace ACT_Notes
                 Version remoteVersion = new Version(ActGlobals.oFormActMain.PluginGetRemoteVersion(pluginId).TrimStart(new char[] { 'v' }));
                 if (remoteVersion > localVersion)
                 {
-                    DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain,
+                    Rectangle screen = Screen.GetWorkingArea(ActGlobals.oFormActMain);
+                    DialogResult result = SimpleMessageBox.Show(new Point(screen.Width/2 - 100, screen.Height/2 - 100),
                           @"There is an update for the Notes plugin."
                         + @"\line Update it now?"
                         + @"\line (If there is an update to ACT"
