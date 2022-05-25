@@ -109,7 +109,7 @@ The plugin provides several options for receiving shared notes when the receivin
 * **Append**: The incoming note will be appended to the existing note.
 * **Replace**: The incoming note will replace the existing note.
 * **Ask**: The plugin will prompt for whether to append, replace, or ignore the incoming note.
-* **Accept**: The existing note will replace the incoming note if the sender is on the receiver's whitelist.
+* **Accept**: The incoming note will replace the existing note if the sender is on the receiver's whitelist.
   * The note is appended if the sender is not whitelisted.
   * This option is not present if the user's whitelist is empty.
 
