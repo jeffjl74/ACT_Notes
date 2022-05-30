@@ -43,34 +43,20 @@ namespace ACT_Notes
         {
             try
             {
+                Point pt = PointToScreen(new Point(this.Left, this.Top));
+                FontDialogEx fontDialog = new FontDialogEx(pt.X, pt.Y);
                 if (!(rtbDoc.SelectionFont == null))
                 {
-                    FontDialog1.Font = rtbDoc.SelectionFont;
+                    fontDialog.Font = rtbDoc.SelectionFont;
                 }
                 else
                 {
-                    FontDialog1.Font = null;
+                    fontDialog.Font = null;
                 }
-                FontDialog1.ShowApply = true;
-                if (FontDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                fontDialog.ShowApply = true;
+                if (fontDialog.ShowDialog() == DialogResult.OK)
                 {
-                    rtbDoc.SelectionFont = FontDialog1.Font;
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message.ToString(), "Error");
-            }
-        }
-
-        private void FontColorToolStripMenuItem_Click(object sender, System.EventArgs e)
-        {
-            try
-            {
-                ColorDialog1.Color = rtbDoc.ForeColor;
-                if (ColorDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    rtbDoc.SelectionColor = ColorDialog1.Color;
+                    rtbDoc.SelectionFont = fontDialog.Font;
                 }
             }
             catch (Exception ex)
@@ -233,10 +219,19 @@ namespace ACT_Notes
                 rtbDoc.SelectionIndent = 0;
         }
 
+        private void colorStripDropDownFontColor_Click(object sender, ColorPickerEventArgs e)
+        {
+            rtbDoc.SelectionColor = colorStripDropDownFontColor.Value;
+        }
+
+        private void toolDropDownButtonBackground_Click(object sender, ColorPickerEventArgs e)
+        {
+            rtbDoc.SelectionBackColor = toolDropDownButtonBackground.Value;
+        }
 
         #endregion Toolbar Methods
 
-        
+
         #region Document
 
         private void rtbDoc_KeyDown(object sender, KeyEventArgs e)
@@ -301,6 +296,8 @@ namespace ACT_Notes
                 tbrItalic.Checked = rtbDoc.SelectionFont.Italic;
                 tbrUnderline.Checked = rtbDoc.SelectionFont.Underline;
                 tbrStrikethrough.Checked = rtbDoc.SelectionFont.Strikeout;
+                toolDropDownButtonBackground.Value = rtbDoc.SelectionBackColor;
+                colorStripDropDownFontColor.Value = rtbDoc.SelectionColor;
             }
             tbrBullets.Checked = rtbDoc.SelectionBullet;
         }

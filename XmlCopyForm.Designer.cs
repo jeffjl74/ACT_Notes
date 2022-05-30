@@ -38,8 +38,9 @@ namespace ACT_Notes
             this.radioButtonR = new System.Windows.Forms.RadioButton();
             this.radioButtonCustom = new System.Windows.Forms.RadioButton();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-            this.textBoxCustom = new System.Windows.Forms.TextBox();
             this.buttonMacro = new System.Windows.Forms.Button();
+            this.checkBoxCompress = new System.Windows.Forms.CheckBox();
+            this.textBoxCustom = new System.Windows.Forms.TextBox();
             this.SuspendLayout();
             // 
             // listBox1
@@ -50,7 +51,7 @@ namespace ACT_Notes
             this.listBox1.FormattingEnabled = true;
             this.listBox1.Location = new System.Drawing.Point(13, 13);
             this.listBox1.Name = "listBox1";
-            this.listBox1.Size = new System.Drawing.Size(239, 108);
+            this.listBox1.Size = new System.Drawing.Size(239, 95);
             this.listBox1.TabIndex = 0;
             // 
             // buttonCopy
@@ -81,7 +82,7 @@ namespace ACT_Notes
             this.labelReady.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.labelReady.AutoSize = true;
             this.labelReady.ForeColor = System.Drawing.SystemColors.Highlight;
-            this.labelReady.Location = new System.Drawing.Point(12, 153);
+            this.labelReady.Location = new System.Drawing.Point(12, 155);
             this.labelReady.Name = "labelReady";
             this.labelReady.Size = new System.Drawing.Size(131, 13);
             this.labelReady.TabIndex = 4;
@@ -91,7 +92,7 @@ namespace ACT_Notes
             // 
             this.radioButtonG.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.radioButtonG.AutoSize = true;
-            this.radioButtonG.Location = new System.Drawing.Point(15, 127);
+            this.radioButtonG.Location = new System.Drawing.Point(15, 114);
             this.radioButtonG.Name = "radioButtonG";
             this.radioButtonG.Size = new System.Drawing.Size(36, 17);
             this.radioButtonG.TabIndex = 2;
@@ -104,7 +105,7 @@ namespace ACT_Notes
             // 
             this.radioButtonR.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.radioButtonR.AutoSize = true;
-            this.radioButtonR.Location = new System.Drawing.Point(57, 127);
+            this.radioButtonR.Location = new System.Drawing.Point(57, 114);
             this.radioButtonR.Name = "radioButtonR";
             this.radioButtonR.Size = new System.Drawing.Size(33, 17);
             this.radioButtonR.TabIndex = 3;
@@ -117,7 +118,7 @@ namespace ACT_Notes
             // 
             this.radioButtonCustom.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.radioButtonCustom.AutoSize = true;
-            this.radioButtonCustom.Location = new System.Drawing.Point(93, 127);
+            this.radioButtonCustom.Location = new System.Drawing.Point(93, 114);
             this.radioButtonCustom.Name = "radioButtonCustom";
             this.radioButtonCustom.Size = new System.Drawing.Size(62, 17);
             this.radioButtonCustom.TabIndex = 1;
@@ -127,18 +128,9 @@ namespace ACT_Notes
             this.radioButtonCustom.UseVisualStyleBackColor = true;
             this.radioButtonCustom.CheckedChanged += new System.EventHandler(this.radioButtonCustom_CheckedChanged);
             // 
-            // textBoxCustom
-            // 
-            this.textBoxCustom.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxCustom.Location = new System.Drawing.Point(151, 126);
-            this.textBoxCustom.Name = "textBoxCustom";
-            this.textBoxCustom.Size = new System.Drawing.Size(101, 20);
-            this.textBoxCustom.TabIndex = 7;
-            this.textBoxCustom.TextChanged += new System.EventHandler(this.textBoxCustom_TextChanged);
-            // 
             // buttonMacro
             // 
+            this.buttonMacro.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.buttonMacro.Location = new System.Drawing.Point(15, 173);
             this.buttonMacro.Name = "buttonMacro";
             this.buttonMacro.Size = new System.Drawing.Size(75, 23);
@@ -148,12 +140,37 @@ namespace ACT_Notes
             this.buttonMacro.UseVisualStyleBackColor = true;
             this.buttonMacro.Click += new System.EventHandler(this.buttonMacro_Click);
             // 
+            // checkBoxCompress
+            // 
+            this.checkBoxCompress.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.checkBoxCompress.AutoSize = true;
+            this.checkBoxCompress.Location = new System.Drawing.Point(15, 135);
+            this.checkBoxCompress.Name = "checkBoxCompress";
+            this.checkBoxCompress.Size = new System.Drawing.Size(109, 17);
+            this.checkBoxCompress.TabIndex = 9;
+            this.checkBoxCompress.Text = "Compress Images";
+            this.toolTip1.SetToolTip(this.checkBoxCompress, "Reduce the number of sections\r\nby compressing notes with images.\r\nRecipients must" +
+        " be running Notes ver 1.1");
+            this.checkBoxCompress.UseVisualStyleBackColor = true;
+            this.checkBoxCompress.CheckedChanged += new System.EventHandler(this.checkBoxCompress_CheckedChanged);
+            // 
+            // textBoxCustom
+            // 
+            this.textBoxCustom.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxCustom.Location = new System.Drawing.Point(151, 113);
+            this.textBoxCustom.Name = "textBoxCustom";
+            this.textBoxCustom.Size = new System.Drawing.Size(101, 20);
+            this.textBoxCustom.TabIndex = 7;
+            this.textBoxCustom.TextChanged += new System.EventHandler(this.textBoxCustom_TextChanged);
+            // 
             // XmlCopyForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(264, 204);
             this.ControlBox = false;
+            this.Controls.Add(this.checkBoxCompress);
             this.Controls.Add(this.buttonMacro);
             this.Controls.Add(this.textBoxCustom);
             this.Controls.Add(this.radioButtonCustom);
@@ -185,5 +202,6 @@ namespace ACT_Notes
         private System.Windows.Forms.ToolTip toolTip1;
         private System.Windows.Forms.TextBox textBoxCustom;
         private System.Windows.Forms.Button buttonMacro;
+        private System.Windows.Forms.CheckBox checkBoxCompress;
     }
 }

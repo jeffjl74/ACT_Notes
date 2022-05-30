@@ -13,12 +13,15 @@ namespace ACT_Notes
     {
         [XmlAttribute]
         public int SplitterLoc { get; set; }
+        [XmlAttribute]
+        public bool CompressImages { get; set; }
         public List<Zone> Zones { get; set; }
 
         public ZoneList()
         {
             Zones = new List<Zone>();
             SplitterLoc = -1;
+            CompressImages = false;
         }
     }
 }

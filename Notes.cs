@@ -9,11 +9,12 @@ using System.Windows.Forms;
 using System.Xml.Serialization;
 using System.Linq;
 using System.Threading;
+using System.Text.RegularExpressions;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
 
 namespace ACT_Notes
 {
@@ -41,8 +42,10 @@ namespace ACT_Notes
         // text find in zone notes and mob notes
         bool foundZoneNeedMobs = false;
         int foundMobIndex = 0;
-        Color defaultBackground = Color.White;      //background default for the rich text box
-        Color foundBackground = Color.Yellow;       //background for a found word
+        //background for a found word
+        //use a slightly off "Color.Yellow" so as to be unlikely to be chosen by the user
+        //as a backgound color
+        Color foundBackground = Color.FromArgb(0xfdfd00);
 
         // new node support
         const string newMob = "New Mob";
@@ -59,6 +62,7 @@ namespace ACT_Notes
         int xmlCurrentSection;
         string[] xmlSections;
         bool[] packetTrack;
+        bool compressedXml = false;
 
         ImageList treeImages = new ImageList();     //tree folder images
 
@@ -135,12 +139,20 @@ namespace ACT_Notes
 
         private void OFormActMain_OnCombatEnd(bool isImport, CombatToggleEventArgs encounterInfo)
         {
-            // if we won, see if the enemy is in our list so we can move to the next enemy
-            if (encounterInfo.encounter.GetEncounterSuccessLevel() == 1)
+            if (enemies.Count > 0)
             {
-                string enemy = encounterInfo.encounter.GetStrongestEnemy(ActGlobals.charName);
-                if (enemies.Contains(enemy))
-                    mUiContext.Post(KillProc, enemy);
+                // if we won, see if the mob is in our list so we can move to the next note
+                if (encounterInfo.encounter.GetEncounterSuccessLevel() == 1)
+                {
+                    foreach (CombatantData d in encounterInfo.encounter.Items.Values)
+                    {
+                        if (enemies.Contains(d.Name))
+                        {
+                            mUiContext.Post(KillProc, d.Name);
+                            break;
+                        }
+                    }
+                }
             }
         }
 
@@ -268,7 +280,11 @@ namespace ACT_Notes
 
                             e.XmlAttributes.TryGetValue("P", out xmlSendingPlayer);
 
-                            // should only end up pasting at this point if both are 1
+                            string isCompressed;
+                            e.XmlAttributes.TryGetValue("C", out isCompressed);
+                            compressedXml = !string.IsNullOrEmpty(isCompressed);
+
+                            // done if we have all the sections
                             if (!packetTrack.Contains(false))
                                 mUiContext.Post(XmlPasteProc, null);
                         }
@@ -311,6 +327,19 @@ namespace ACT_Notes
             string data_enc = string.Join("", xmlSections);
             // incoming data has substitutions to work around EQII and ACT expectations
             string data = XmlCopyForm.DecodeShare(data_enc);
+            if (compressedXml)
+                data = XmlCopyForm.DecompressShare(data);
+            // test for a good rtf
+            try
+            {
+                RichTextBox rtb = new RichTextBox();
+                rtb.Rtf = data;
+            }
+            catch (Exception tx)
+            {
+                SimpleMessageBox.Show(this, "Illegal note format: " + tx.Message, "Note Share Error");
+                return;
+            }
 
             Zone zone = zoneList.Zones.Find(z => z.ZoneName == xmlZone.ZoneName);
             if (zone == null)
@@ -734,7 +763,7 @@ namespace ACT_Notes
         private void textBoxZoneFind_TextChanged(object sender, EventArgs e)
         {
             // remove any highlight from the current RTB before we move on
-            UnHighlight();
+            UnHighlightFound();
 
             if (string.IsNullOrEmpty(textBoxZoneFind.Text))
             {
@@ -759,7 +788,7 @@ namespace ACT_Notes
         private void FindNextNode()
         {
             // remove any highlight from the current RTB before we move on
-            UnHighlight();
+            UnHighlightFound();
 
             if (foundNodesIndex < foundNodes.Count - 1)
             {
@@ -886,7 +915,7 @@ namespace ACT_Notes
                 if (treeViewZones.SelectedNode != null)
                 {
                     // remove any highlight from the current RTB before we move on
-                    UnHighlight();
+                    UnHighlightFound();
 
                     // save the note for the current (about to be un-selected) node
                     SaveNote(treeViewZones.SelectedNode, false);
@@ -1288,11 +1317,21 @@ namespace ACT_Notes
                         "Empty note", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 else
                 {
-                    XmlCopyForm form = new XmlCopyForm(zone, mob);
+                    XmlCopyForm form = new XmlCopyForm(zone, mob, zoneList.CompressImages);
+                    form.CompressCheckChanged += Form_CompressCheckChanged;
                     form.Show();
                     PositionChildForm(form, clickedZonePoint);
                     form.TopMost = true;
                 }
+            }
+        }
+
+        private void Form_CompressCheckChanged(object sender, EventArgs e)
+        {
+            CompressCheckChangedEventArgs arg = e as CompressCheckChangedEventArgs;
+            if(arg != null)
+            {
+                zoneList.CompressImages = arg.isChecked;
             }
         }
 
@@ -1487,7 +1526,7 @@ namespace ACT_Notes
             else
             {
                 buttonFindNext.Enabled = false;
-                UnHighlight();
+                UnHighlightFound();
             }
         }
 
@@ -1527,7 +1566,7 @@ namespace ACT_Notes
             }
             if (!found)
             {
-                UnHighlight();
+                UnHighlightFound();
                 SimpleMessageBox.Show(ActGlobals.oFormActMain, "Not found", "Find");
             }
         }
@@ -1539,6 +1578,10 @@ namespace ACT_Notes
             rtb.Rtf = note;
             int startIndex = 0;
             bool foundFirst = false;
+            // save the current selection
+            int selStart = richEditCtrl1.rtbDoc.SelectionStart;
+            int selLen = richEditCtrl1.rtbDoc.SelectionLength;
+
             while (startIndex < rtb.TextLength)
             {
                 int wordstartIndex = rtb.Find(searchText, startIndex, RichTextBoxFinds.None);
@@ -1553,7 +1596,7 @@ namespace ACT_Notes
                             foundFirst = true;
                             treeViewZones.SelectedNode = nodes[0];
                             treeViewZones.SelectedNode.EnsureVisible();
-                            UnHighlight();
+                            UnHighlightFound();
                         }
                         richEditCtrl1.rtbDoc.SelectionStart = wordstartIndex;
                         richEditCtrl1.rtbDoc.SelectionLength = searchText.Length;
@@ -1564,6 +1607,9 @@ namespace ACT_Notes
                     break;
                 startIndex += wordstartIndex + searchText.Length;
             }
+            // restore the selection
+            richEditCtrl1.rtbDoc.SelectionStart = selStart;
+            richEditCtrl1.rtbDoc.SelectionLength = selLen;
             return found;
         }
 
@@ -1602,7 +1648,7 @@ namespace ACT_Notes
             if (node != null)
             {
                 // remove any "find" highlights before we save it
-                UnHighlight();
+                UnHighlightFound();
 
                 Zone zone = null;
                 if (node.Level == 0)
@@ -1660,20 +1706,51 @@ namespace ACT_Notes
             return ret;
         }
 
-        private void UnHighlight()
+        private void UnHighlightFound()
         {
             if(richEditCtrl1.rtbDoc.Text.Length > 0)
             {
-                // remove any "find" highlights
                 richEditCtrl1.SuspendLayout();
-                int selStart = richEditCtrl1.rtbDoc.SelectionStart;
-                int selLen = richEditCtrl1.rtbDoc.SelectionLength;
-                richEditCtrl1.rtbDoc.SelectAll();
-                richEditCtrl1.rtbDoc.SelectionBackColor = defaultBackground;
-                richEditCtrl1.rtbDoc.SelectionStart = selStart;
-                richEditCtrl1.rtbDoc.SelectionLength = selLen;
+
+                // remove any "find" highlights
+                string highlight = GetFindHighlightNumber(richEditCtrl1.rtbDoc.Rtf);
+                if (!string.IsNullOrEmpty(highlight))
+                {
+                    // replace \highlightX ...\highlightY with only whatever is between them (represented by the ...)
+                    // where X is the find highlight number and Y is any number
+                    string pattern = $@"\{highlight} ?(.+?)\\highlight\d+ ?";
+                    string un = Regex.Replace(richEditCtrl1.rtbDoc.Rtf, pattern, "$1");
+                    richEditCtrl1.rtbDoc.Rtf = un;
+                }
+
                 richEditCtrl1.ResumeLayout();
             }
+        }
+
+        private string GetFindHighlightNumber(string rtf)
+        {
+            // search the RTF color table for the color we are using to highlight "found text"
+            string result = string.Empty;
+            int start = rtf.IndexOf(@"{\colortbl");
+            if(start >= 0)
+            {
+                int end = rtf.IndexOf('}', start);
+                if(end >= 0)
+                {
+                    string colortbl = rtf.Substring(start, end-start+1);
+                    string[] colors = colortbl.Split(';');
+                    string match = $@"\red{foundBackground.R}\green{foundBackground.G}\blue{foundBackground.B}";
+                    for(int i=0; i<colors.Length; i++)
+                    {
+                        if (colors[i] == match)
+                        {
+                            result = $"\\highlight{i}";
+                            break;
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
         private void VisitLink()

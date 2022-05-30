@@ -10,6 +10,16 @@ All entries are user-generated, but can be shared using ACT's XML sharing mechan
 An example is shown below.
 
 ![Overview](images/Overview.png)
+
+## Upadate Notes
+_Version 1.1_
+* Added the ability to set the background color in the editor.
+* Reworked the editor color pickers.
+* To reduce the number of sections while sharing, notes with images can now compressed.
+  * __If the receiver of the note is not running version 1.1 of the plugin, this will cause an error on their end. Be sure everyone has updated to version 1.1 before using this feature.__
+  * Compressed notes will be incomprehensible when seen in the chat window.
+* Updated matching mob notes with mobs killed. Should match more reliably.
+
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
 The **[Add Mob]** button creates a new mob in the currently selected zone.
@@ -34,7 +44,7 @@ When a fight involves more than one name, if all the names are entered for the m
 ## Adding Notes
 Simply type in the editor panel after a zone or mob is selected to create a note for that zone or mob.
 
-The editor allows the choice of font, color, bullets, URLs, images, etc.
+The editor allows the choice of font, colors, bullets, URLs, images, etc.
 
 The editor can save many image types using either `Ctrl-V` to insert from the clipboard, or the `Insert image from file` toolbar button (which also uses the clipboard).
 **Note:** The plugin saves the images as text bitmaps, which is not very efficient for loading, storing, or sharing.
@@ -75,26 +85,46 @@ The plugin automatically breaks a note into appropriate sharable sizes.
 
 There are two methods for sharing a note. The first method is similar to how a trigger is shared in ACT. The second method uses EQII macros.
 
- Notes with even a small image in them will result in a lot of sections, making the macro the only reasonable option. Below is an example small image that results in 64 copy sections but only one macro.
+ Notes with even a small image in them will result in a lot of sections, making the macro the only reasonable option. Version 1.1 of the plugin adds an option to compress notes with images. This typically reduces the number of sections. But the recipient of the note must be running version 1.1 of the plugin to decode the compression. **Version 1.0 of the plugin will generate an error every time it tries to view the note if it receives a compressed note.**
 
-![icon](images/small-image-sections.png)
+Once all recipients have updated to plugin version 1.1, the **Compress Images** checkbox can remain checked.
+
+Below is an example that results in 200 copy sections or three macros. This particular note is 61 sections or one macro when compressed.
+
+![icon](images/big-image-sections.png)
 
 #### Method 1: Paste Share
-To paste into a chat window, the sender of the note needs to copy each section from the plugin using the plugin's **[Copy]** button and then use `Ctrl-V` to paste it in the chat window, as shown below. In this example, three sections are required. The `/g` selection prefixes the section with the groupsay command. The user presses the **[Copy]** button to put the first section in the clipboard, then clicks the game chat window and presses `Ctrl-V`. The plugin automatically moved to the second section, so the user can just click **[Copy]** again.
+To paste into a chat window, the sender of the note needs to copy each section from the plugin using the plugin's **[Copy]** button and then use `Ctrl-V` to paste it in the chat window, as shown below. In this example, three sections are required. The `/g` selection prefixes the section with the groupsay command. The user follows the procedure below:
+1. verify or select the appropriate prefix and image compression
+2. press the **[Copy]** button to put the first section in the clipboard
+2. click the game chat window and press `Ctrl-V`
+3. the plugin automatically moved to the second section, so the user can just click the plugin **[Copy]** again
+4. repeat until all sections are copied to game chat
+5. press **[Done]** to dismiss the dialog
+
+This process is illustrated below.
 
 ![copy-paste](images/paste.gif)
 
 #### Method 2: Macro Share
-The plugin's **[Macro]** button generally takes fewer steps to share a note. Pressing the **[Macro]** button generates enough text files to share the note. The text file names follow the format `note-macroX.txt` where `X` is a number starting with 1 and incrementing until enough files are created to share the entire note, e.g. the first 16,000 or so characters would be shared using the macro file `note-macro1.txt`. Once the plugin creates the macro file(s), the note is actually shared in EQII using the slash command `/do_file_commands note-macro1.txt` in an EQII chat window, using the appropriate macro file name(s).
+The plugin's **[Macro]** button generally takes fewer steps to share a note. Pressing the **[Macro]** button generates enough text files to share the note. The text file names follow the format `note-macroX.txt` where `X` is a number starting with 1 and incrementing until enough files are created to share the entire note, e.g. the first 16,000 or so characters would be shared using the macro file `note-macro1.txt`. To share using macros, the user follows the procedure below:
+1. Verify or select the appropriate prefix and image compression
+2. press the **[Macro]** button
+3. the plugin creates the macro file(s)
+4. the note is shared in EQII using the slash command `/do_file_commands note-macro1.txt` in an EQII chat window
+5. continue with `/do_file_commands note-macro2.txt`, etc. as required
+6. press **[Done]** to dismiss the dialog
+
+This process is illustrated below.
 
 ![macro](images/macro.gif)
 
 #### Section Reception
 The receiver of the note needs to accept each section. A single macro can contain up to 16 sections.
 
-If lots of sections arrive faster than you can click the ACT `Add Now` button for XML shares,
-you can still accept them on ACT's `Options` tab, `Configuration Import/Export` heading,
-`XML Share Snippets` section. Select each one listed in the yellow box and press the **[Import Above Data]** under the white box. **Note:** you can bypass the `Add Now` button for trusted players by adding them to the `Automatically accept data from` in the green list.
+If lots of sections arrive faster than the receiver can click the ACT `Add Now` button for XML shares,
+they can still accept them on ACT's `Options` tab, `Configuration Import/Export` heading,
+`XML Share Snippets` section. Select each one listed in the yellow box and press the **[Import Above Data]** under the white box. **Note:** the `Add Now` button can be bypassed for trusted players by adding them to the `Automatically accept data from` in the green list.
 
 When using macros, all sections from each macro should be accepted before another macro is shared to avoid mixing sections between macros. For example, make sure all sections from `note-macro1.txt` have been accepted before sharing `note-macro2.txt`
 

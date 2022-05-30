@@ -2,12 +2,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO.Compression;
+using System.IO;
 using System.Security.Policy;
 using System.Text;
 using System.Windows.Forms;
+using System.Globalization;
 
 namespace ACT_Notes
 {
+
     public partial class XmlCopyForm : Form
     {
         const int maxChatLen = 240;
@@ -20,13 +24,17 @@ namespace ACT_Notes
         int nextSectionIndex = 0;
         const string doFileName = "note-macro{0}.txt";
         bool loading = true;
+        bool _compress = false;
+        bool compressed = false;
+        public event EventHandler CompressCheckChanged;
 
-        public XmlCopyForm(Zone zone, Mob mob)
+        public XmlCopyForm(Zone zone, Mob mob, bool compressChecked)
         {
             InitializeComponent();
 
             _zone = zone;
             _mob = mob;
+            _compress = compressChecked;
             chatSnippets = Breakup(zone, mob, maxChatLen);
         }
 
@@ -58,6 +66,9 @@ namespace ACT_Notes
                 else
                     radioButtonG.Checked = true; // default to /g
             }
+
+            checkBoxCompress.Checked = _compress;
+
             loading = false;
         }
 
@@ -75,6 +86,22 @@ namespace ACT_Notes
             else
                 orig = zone.Notes;
             noBreaks = orig.Replace("\\par\r\n","\\par ").Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+            compressed = false;
+            if(noBreaks.Contains(@"\pict") && checkBoxCompress.Checked)
+            {
+                // compress the note if it has any image(s)
+                compressed = true;
+                baseSize += " C='T'".Length;
+                MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes(noBreaks));
+                byte[] data = Compress(input);
+                // change it to text
+                StringBuilder sb = new StringBuilder(data.Length * 2);
+                foreach(byte b in data)
+                {
+                    sb.Append($"{b:X2}");
+                }
+                noBreaks = sb.ToString();
+            }
             // alter the XML encoding to get past EQII & ACT expectations
             xml = EncodeShare(noBreaks);
             if (baseSize + xml.Length < maxLen)
@@ -112,6 +139,17 @@ namespace ACT_Notes
             return snippets;
         }
 
+        private static byte[] Compress(Stream input)
+        {
+            using (var compressStream = new MemoryStream())
+            using (var compressor = new DeflateStream(compressStream, CompressionMode.Compress))
+            {
+                input.CopyTo(compressor);
+                compressor.Close();
+                return compressStream.ToArray();
+            }
+        }
+
         private string GetNextSection(int maxLen)
         {
             StringBuilder sb = new StringBuilder();
@@ -122,13 +160,6 @@ namespace ACT_Notes
             nextSectionIndex += sb.Length;
             return sb.ToString();
         }
-
-        //public int GetNumberOfSnippets()
-        //{
-        //    int result = snippets.Count;
-
-        //    return result;
-        //}
 
         private string MobToXML(Zone zone, Mob mob, string note, int sections)
         {
@@ -141,6 +172,8 @@ namespace ACT_Notes
                 if (mob != null)
                     sb.Append(string.Format(" M='{0}'", EncodeShare(mob.MobName)));
                 sb.Append(string.Format(" P='{0}'", ActGlobals.charName));
+                if (compressed)
+                    sb.Append(" C='T'");
                 sb.Append(string.Format(" N='{0}'", note));
                 sb.Append(" />");
 
@@ -174,6 +207,48 @@ namespace ACT_Notes
         {
             // convert incoming string to encoded HTML, then decode the HTML
             return System.Net.WebUtility.HtmlDecode(text.Replace(':', ';').Replace('!', '&'));
+        }
+        public static byte[] ConvertHexStringToByteArray(string hexString)
+        {
+            //if (hexString.Length % 2 != 0)
+            //{
+            //    throw new ArgumentException(String.Format(CultureInfo.InvariantCulture, "The string cannot have an odd number of digits: {0}", hexString));
+            //}
+
+            byte[] data = new byte[hexString.Length / 2];
+            for (int index = 0; index < data.Length; index++)
+            {
+                string byteValue = hexString.Substring(index * 2, 2);
+                data[index] = byte.Parse(byteValue, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            }
+
+            return data;
+        }
+
+        public static string DecompressShare(string compressed)
+        {
+            string result = string.Empty;
+            try
+            {
+                MemoryStream input = new MemoryStream(ConvertHexStringToByteArray(compressed));
+                input.Position = 0;
+
+                using (MemoryStream decompressedFileStream = new MemoryStream())
+                {
+                    using (DeflateStream decompressionStream = new DeflateStream(input, CompressionMode.Decompress, true))
+                    {
+                        decompressionStream.CopyTo(decompressedFileStream);
+                    }
+                    decompressedFileStream.Close();
+                    byte[] data = decompressedFileStream.ToArray();
+                    result = Encoding.Default.GetString(data);
+                }
+            }
+            catch (Exception dex)
+            {
+                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Note decompress failed: " + dex.Message);
+            }
+            return result;
         }
 
         // Encode with a scheme like HTML, but avoid characters that confuse or break
@@ -366,6 +441,16 @@ namespace ACT_Notes
                 chatSnippets = Breakup(_zone, _mob, maxChatLen);
                 ReloadList();
             }
+        }
+
+        private void checkBoxCompress_CheckedChanged(object sender, EventArgs e)
+        {
+            if(CompressCheckChanged != null)
+            {
+                CompressCheckChanged.Invoke(this, new CompressCheckChangedEventArgs { isChecked = checkBoxCompress.Checked});
+            }
+            chatSnippets = Breakup(_zone, _mob, maxChatLen);
+            ReloadList();
         }
     }
 }
