@@ -4,6 +4,9 @@ using System.Windows.Forms;
 
 namespace ACT_Notes
 {
+	/// <summary>
+	/// ColorDialog extension that provides a constructor allowing positioning of the dialog.
+	/// </summary>
     public class ColorDialogEx : ColorDialog
 	{
 		//Extended Color Dialog to allow setting the dialog’s location
