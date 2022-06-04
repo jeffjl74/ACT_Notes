@@ -29,7 +29,7 @@ namespace ACT_Notes
 		None,
 		Basic,
 		Saturated,
-		Backgrounds,
+		Highlights,
 		Extended,
 		Extended2,
 		Extended3,
@@ -295,19 +295,19 @@ namespace ACT_Notes
 					ColorItems.Add(Color.White);
 					break;
 
-				case Palette.Backgrounds:
+				case Palette.Highlights:
 					ColorItems.Add(Color.White);
-					ColorItems.Add(Color.Lavender);
-					ColorItems.Add(Color.LavenderBlush);
-					ColorItems.Add(Color.PeachPuff);
-					ColorItems.Add(Color.LemonChiffon);
-					ColorItems.Add(Color.MistyRose);
-					ColorItems.Add(Color.Honeydew);
-					ColorItems.Add(Color.AliceBlue);
-					ColorItems.Add(Color.WhiteSmoke);
-					ColorItems.Add(Color.AntiqueWhite);
-					ColorItems.Add(Color.LightCyan);
+					ColorItems.Add(Color.Aqua);
+					ColorItems.Add(Color.Aquamarine);
+					ColorItems.Add(Color.DarkGray);
+					ColorItems.Add(Color.DeepPink);
+					ColorItems.Add(Color.DeepSkyBlue);
 					ColorItems.Add(Color.Gainsboro);
+					ColorItems.Add(Color.Gold);
+					ColorItems.Add(Color.LawnGreen);
+					ColorItems.Add(Color.LightSkyBlue);
+					ColorItems.Add(Color.LightSteelBlue);
+					ColorItems.Add(Color.Magenta);
 					ColorItems.Add(Color.Red);
 					ColorItems.Add(Color.Green);
 					ColorItems.Add(Color.Blue);
