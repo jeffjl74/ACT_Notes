@@ -49,10 +49,10 @@ namespace ACT_Notes
             this.tbrStrikethrough = new System.Windows.Forms.ToolStripButton();
             this.ToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
             this.tbrImage = new System.Windows.Forms.ToolStripButton();
-            this.rtbDoc = new System.Windows.Forms.RichTextBox();
+            this.OpenFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.rtbDoc = new ACT_Notes.RichTextBoxEx();
             this.colorStripDropDownFontColor = new ACT_Notes.ColorToolStripDropDownButton();
             this.toolDropDownButtonBackground = new ACT_Notes.ColorToolStripDropDownButton();
-            this.OpenFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.ToolStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -248,11 +248,16 @@ namespace ACT_Notes
             this.tbrImage.Text = "Insert Image from file";
             this.tbrImage.Click += new System.EventHandler(this.InsertImageToolStripMenuItem_Click);
             // 
+            // OpenFileDialog1
+            // 
+            this.OpenFileDialog1.FileName = "OpenFileDialog1";
+            // 
             // rtbDoc
             // 
             this.rtbDoc.AcceptsTab = true;
             this.rtbDoc.Dock = System.Windows.Forms.DockStyle.Fill;
             this.rtbDoc.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.rtbDoc.HideSelection = false;
             this.rtbDoc.Location = new System.Drawing.Point(0, 25);
             this.rtbDoc.Name = "rtbDoc";
             this.rtbDoc.Size = new System.Drawing.Size(657, 479);
@@ -279,7 +284,7 @@ namespace ACT_Notes
             // 
             // toolDropDownButtonBackground
             // 
-            this.toolDropDownButtonBackground.DefaultPalette = ACT_Notes.Palette.Backgrounds;
+            this.toolDropDownButtonBackground.DefaultPalette = ACT_Notes.Palette.Highlights;
             this.toolDropDownButtonBackground.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
             this.toolDropDownButtonBackground.Image = ((System.Drawing.Image)(resources.GetObject("toolDropDownButtonBackground.Image")));
             this.toolDropDownButtonBackground.ImageTransparentColor = System.Drawing.Color.Magenta;
@@ -288,10 +293,6 @@ namespace ACT_Notes
             this.toolDropDownButtonBackground.Text = "Background Color";
             this.toolDropDownButtonBackground.Value = System.Drawing.Color.White;
             this.toolDropDownButtonBackground.Click += new ACT_Notes.ColorToolStripDropDownButton.ColorPaletteEventHandler(this.toolDropDownButtonBackground_Click);
-            // 
-            // OpenFileDialog1
-            // 
-            this.OpenFileDialog1.FileName = "OpenFileDialog1";
             // 
             // EditCtrl
             // 
@@ -322,7 +323,6 @@ namespace ACT_Notes
         internal System.Windows.Forms.ToolStripButton tbrUnderline;
         internal System.Windows.Forms.ToolStripSeparator ToolStripSeparator3;
         internal System.Windows.Forms.ToolStripSeparator ToolStripSeparator4;
-        internal System.Windows.Forms.RichTextBox rtbDoc;
         private System.Windows.Forms.ToolStripButton tbrIndent;
         private System.Windows.Forms.ToolStripButton tbrOutdent;
         private System.Windows.Forms.ToolStripButton tbrBullets;
@@ -332,5 +332,6 @@ namespace ACT_Notes
         private ColorToolStripDropDownButton toolDropDownButtonBackground;
         private ColorToolStripDropDownButton colorStripDropDownFontColor;
         internal System.Windows.Forms.OpenFileDialog OpenFileDialog1;
+        public RichTextBoxEx rtbDoc;
     }
 }

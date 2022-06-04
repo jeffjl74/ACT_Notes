@@ -20,6 +20,7 @@ namespace ACT_Notes
         #region Declarations
 
         public event EventHandler OnSave;
+        public event EventHandler OnUserChangedText;
 
         #endregion Declarations
         
@@ -236,7 +237,10 @@ namespace ACT_Notes
 
         private void rtbDoc_KeyDown(object sender, KeyEventArgs e)
         {
-            if(e.KeyCode == Keys.V && e.Control)
+            if (OnUserChangedText != null)
+                OnUserChangedText.Invoke(this, new EventArgs());
+
+            if (e.KeyCode == Keys.V && e.Control)
             {
                 if(Clipboard.ContainsImage())
                 {
