@@ -10,6 +10,7 @@ using System.Xml.Serialization;
 using System.Linq;
 using System.Threading;
 using System.Text.RegularExpressions;
+using System.Diagnostics;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
@@ -46,6 +47,7 @@ namespace ACT_Notes
         //use a slightly off "Color.Yellow" so as to be unlikely to be chosen by the user
         //as a backgound color
         Color foundBackground = Color.FromArgb(0xfdfd00);
+        List<HighLightRange> highLightRanges = new List<HighLightRange>();
 
         // new node support
         const string newMob = "New Mob";
@@ -101,6 +103,7 @@ namespace ACT_Notes
             LoadSettings();
 
             richEditCtrl1.OnSave += RichEditCtrl1_OnSave;
+            richEditCtrl1.OnUserChangedText += RichEditCtrl1_OnUserChangedText;
 
             // check for a zone change once a second
             zoneTimer.Interval = 1000;
@@ -146,7 +149,7 @@ namespace ACT_Notes
                 {
                     foreach (CombatantData d in encounterInfo.encounter.Items.Values)
                     {
-                        if (enemies.Contains(d.Name))
+                        if (enemies.Contains(d.Name.ToLower()))
                         {
                             mUiContext.Post(KillProc, d.Name);
                             break;
@@ -165,7 +168,7 @@ namespace ACT_Notes
                 TreeNode node = BuildEnemyList();
                 if (node != null)
                 {
-                    treeViewZones.SelectedNode = BuildEnemyList();
+                    treeViewZones.SelectedNode = node;
                     treeViewZones.SelectedNode.EnsureVisible();
                 }
             }
@@ -173,6 +176,7 @@ namespace ACT_Notes
 
         private TreeNode BuildEnemyList()
         {
+            enemies.Clear();
             TreeNode result = null;
             TreeNode[] nodes = treeViewZones.Nodes.Find(currentZone, false);
             if (nodes.Length > 0)
@@ -190,7 +194,7 @@ namespace ACT_Notes
                             string[] names = m.MobName.Split(',');
                             foreach (string name in names)
                             {
-                                enemies.Add(name.Trim());
+                                enemies.Add(name.Trim().ToLower());
                             }
                         }
                     }
@@ -890,6 +894,7 @@ namespace ACT_Notes
                                 {
                                     mob.MobName += $", {autoNodeName}";
                                     treeViewZones.SelectedNode.Text = mob.MobName;
+                                    treeViewZones.SelectedNode.Name = mob.MobName;
                                     BuildEnemyList();
                                     return;
                                 }
@@ -1507,11 +1512,14 @@ namespace ACT_Notes
                     buttonFindNext.Enabled = false;
                     if(treeViewZones.SelectedNode != null)
                     {
-                        string nodeName = treeViewZones.SelectedNode.Text;
+                        //string nodeName = treeViewZones.SelectedNode.Text;
                         string searchText = textBoxEditFind.Text.ToLower();
-                        bool found = FindInNote(nodeName, searchText, richEditCtrl1.rtbDoc.Rtf);
+                        bool found = FindInNote(treeViewZones.SelectedNode, searchText, richEditCtrl1.rtbDoc.Rtf);
                         if (!found)
-                            SimpleMessageBox.Show(ActGlobals.oFormActMain, "Not found", "Find Text");
+                        {
+                            UnHighlightFound();
+                            SimpleMessageBox.ShowDialog(ActGlobals.oFormActMain, $"\\b {searchText}\\b0  Not found", "Find Text");
+                        }
                     }
                 }
                 else
@@ -1539,23 +1547,37 @@ namespace ACT_Notes
                 Zone zone = zoneList.Zones[foundZoneIndex];
                 if (zone.Notes != null && !foundZoneNeedMobs)
                 {
-                    found = FindInNote(zone.ZoneName, searchText, zone.Notes);
-                    if (found)
+                    // search in the zone note
+                    TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, true);
+                    if(nodes.Length > 0)
                     {
-                        foundZoneNeedMobs = true;
-                        break;
+                        found = FindInNote(nodes[0], searchText, zone.Notes);
+                        if (found)
+                        {
+                            foundZoneNeedMobs = true;
+                            break;
+                        }
                     }
                 }
                 if (!found && zone.Mobs.Count > 0)
                 {
-                    for (; foundMobIndex < zone.Mobs.Count; foundMobIndex++)
+                    // search in this zone's mob notes
+                    TreeNode[] parent = treeViewZones.Nodes.Find(zone.ZoneName, true);
+                    if(parent.Length > 0)
                     {
-                        Mob mob = zone.Mobs[foundMobIndex];
-                        found = FindInNote(mob.MobName, searchText, mob.Notes);
-                        if (found)
+                        for (; foundMobIndex < zone.Mobs.Count; foundMobIndex++)
                         {
-                            foundMobIndex++; // find-next will start with the next mob
-                            break;
+                            Mob mob = zone.Mobs[foundMobIndex];
+                            TreeNode[] nodes = parent[0].Nodes.Find(mob.MobName, true);
+                            if(nodes.Length > 0)
+                            {
+                                found = FindInNote(nodes[0], searchText, mob.Notes);
+                                if (found)
+                                {
+                                    foundMobIndex++; // find-next will start with the next mob
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
@@ -1567,50 +1589,96 @@ namespace ACT_Notes
             if (!found)
             {
                 UnHighlightFound();
-                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Not found", "Find");
+                SimpleMessageBox.ShowDialog(ActGlobals.oFormActMain, $"\\b {searchText}\\b0  Not found", "Find");
             }
         }
 
-        private bool FindInNote(string nodeName, string searchText, string note)
+        private bool FindInNote(TreeNode node, string searchText, string note)
         {
             bool found = false;
+            int startIndex = 0;
+            // use a local RTB since the note we are searching may not be visible (yet)
             RichTextBox rtb = new RichTextBox();
             rtb.Rtf = note;
-            int startIndex = 0;
-            bool foundFirst = false;
-            // save the current selection
-            int selStart = richEditCtrl1.rtbDoc.SelectionStart;
-            int selLen = richEditCtrl1.rtbDoc.SelectionLength;
+
+            UnHighlightFound();
+            bool sameNode = treeViewZones.SelectedNode == node;
+            if (sameNode)
+            {
+                // load the un-highlighted
+                rtb.Rtf = richEditCtrl1.rtbDoc.Rtf;
+            }
+
+            CatalogHighlights(rtb);
 
             while (startIndex < rtb.TextLength)
             {
                 int wordstartIndex = rtb.Find(searchText, startIndex, RichTextBoxFinds.None);
                 if (wordstartIndex != -1)
                 {
-                    TreeNode[] nodes = treeViewZones.Nodes.Find(nodeName, true);
-                    if (nodes.Length > 0)
-                    {
-                        found = true;
-                        if (!foundFirst)
-                        {
-                            foundFirst = true;
-                            treeViewZones.SelectedNode = nodes[0];
-                            treeViewZones.SelectedNode.EnsureVisible();
-                            UnHighlightFound();
-                        }
-                        richEditCtrl1.rtbDoc.SelectionStart = wordstartIndex;
-                        richEditCtrl1.rtbDoc.SelectionLength = searchText.Length;
-                        richEditCtrl1.rtbDoc.SelectionBackColor = foundBackground;
-                    }
+                    found = true;
+                    rtb.SelectionStart = wordstartIndex;
+                    rtb.SelectionLength = searchText.Length;
+                    rtb.SelectionBackColor = foundBackground;
                 }
                 else
                     break;
-                startIndex += wordstartIndex + searchText.Length;
+                startIndex = wordstartIndex + searchText.Length;
             }
-            // restore the selection
-            richEditCtrl1.rtbDoc.SelectionStart = selStart;
-            richEditCtrl1.rtbDoc.SelectionLength = selLen;
+
+            if (found)
+            {
+                if(sameNode)
+                {
+                    richEditCtrl1.rtbDoc.SuspendPainting();
+                    richEditCtrl1.rtbDoc.Rtf = rtb.Rtf;
+                    richEditCtrl1.rtbDoc.ResumePainting();
+                }
+                else
+                {
+                    UnHighlightFound(); //previous node
+                    richEditCtrl1.rtbDoc.SuspendPainting();
+                    treeViewZones.SelectedNode = node;
+                    treeViewZones.SelectedNode.EnsureVisible();
+                    CatalogHighlights(richEditCtrl1.rtbDoc); // new node
+                    richEditCtrl1.rtbDoc.Rtf = rtb.Rtf;
+                    richEditCtrl1.rtbDoc.ResumePainting();
+                    // just scroll to the top
+                    richEditCtrl1.rtbDoc.SelectionStart = 0;
+                    richEditCtrl1.rtbDoc.SelectionLength = 0;
+                    richEditCtrl1.rtbDoc.ScrollToCaret();
+                }
+            }
+
             return found;
+        }
+
+        private void CatalogHighlights(RichTextBox rtb)
+        {
+            // catalog any non-white backgrounds
+            highLightRanges.Clear();
+            int i = 0;
+            rtb.SelectionLength = 1;
+            while (i < rtb.Text.Length)
+            {
+                rtb.SelectionStart = i;
+                if (rtb.SelectionBackColor != Color.White)
+                {
+                    Color backColor = rtb.SelectionBackColor;
+                    int j = i + 1;
+                    while (j < rtb.Text.Length)
+                    {
+                        rtb.SelectionStart = j;
+                        if (rtb.SelectionBackColor != backColor)
+                            break;
+                        j++;
+                    }
+                    highLightRanges.Add(new HighLightRange { index = i, color = backColor, length = j - i });
+                    i = j;
+                }
+                else
+                    i++;
+            }
         }
 
         private void buttonTextFindNext_Click(object sender, EventArgs e)
@@ -1710,8 +1778,6 @@ namespace ACT_Notes
         {
             if(richEditCtrl1.rtbDoc.Text.Length > 0)
             {
-                richEditCtrl1.SuspendLayout();
-
                 // remove any "find" highlights
                 string highlight = GetFindHighlightNumber(richEditCtrl1.rtbDoc.Rtf);
                 if (!string.IsNullOrEmpty(highlight))
@@ -1719,12 +1785,72 @@ namespace ACT_Notes
                     // replace \highlightX ...\highlightY with only whatever is between them (represented by the ...)
                     // where X is the find highlight number and Y is any number
                     string pattern = $@"\{highlight} ?(.+?)\\highlight\d+ ?";
-                    string un = Regex.Replace(richEditCtrl1.rtbDoc.Rtf, pattern, "$1");
-                    richEditCtrl1.rtbDoc.Rtf = un;
-                }
+                    Regex re = new Regex(pattern);
+                    // can't manipulate the RichTextBox RTF directly - it messes up. so work on a copy of the RTF
+                    string source = richEditCtrl1.rtbDoc.Rtf;
+                    bool modified = false;
+                    Match match = re.Match(source);
+                    while(match.Success)
+                    {
+                        int end = match.Index + match.Groups[0].Length;
+                        string left = source.Substring(0, match.Index);
+                        string right = source.Substring(end, source.Length - end);
+                        // backtrack to see if we need to keep the control word terminating space
+                        bool done = false;
+                        for (int i = match.Index - 1; i >= 0; i--)
+                        {
+                            char c = source[i]; //shorthand
+                            if (c == ' ' || c == '\r' || c == '\n' || c == '}')
+                            {
+                                // no immediately preceeding RTF control word
+                                // so we need to remove the possible space after the starting \highlight
+                                // which the regular expression already removed
+                                // so just remove the old string and insert the regex group
+                                source = left + match.Groups[1].Value + right;
+                                done = true;
+                                modified = true;
+                                break;
+                            }
+                            else if (c == '\\')
+                            {
+                                // there is a preceeding unterminated control word
+                                // need to retain the space after the starting \highlight
+                                // which the regex removed, so add a space on the replacement
+                                source = left + " " + match.Groups[1].Value + right;
+                                done = true;
+                                modified = true;
+                                break;
+                            }
+                        }
+                        if (!done)
+                            break; // should never get here. there is always a \rtf at the start of a valid note
 
-                richEditCtrl1.ResumeLayout();
+                        int start = match.Index;
+                        if (start > source.Length)
+                            break;
+                        match = re.Match(source, start);
+                    }
+                    if (modified)
+                    {
+                        richEditCtrl1.rtbDoc.SuspendPainting();
+                        richEditCtrl1.rtbDoc.Rtf = source;
+                        // re-apply any user-set background that we might have disturbed with the find background
+                        foreach(HighLightRange range in highLightRanges)
+                        {
+                            richEditCtrl1.rtbDoc.SelectionStart = range.index;
+                            richEditCtrl1.rtbDoc.SelectionLength = range.length;
+                            richEditCtrl1.rtbDoc.SelectionBackColor = range.color;
+                            Debug.WriteLine($"recolor {treeViewZones.SelectedNode.Text}: {range.index}, {range.length}, {range.color}");
+                        }
+                        richEditCtrl1.rtbDoc.ResumePainting();
+                    }
+                }
             }
+        }
+
+        private void RichEditCtrl1_OnUserChangedText(object sender, EventArgs e)
+        {
+            UnHighlightFound();
         }
 
         private string GetFindHighlightNumber(string rtf)

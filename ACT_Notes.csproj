@@ -87,6 +87,7 @@
     <Compile Include="FontDialogEx.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="HighLightRange.cs" />
     <Compile Include="Mob.cs" />
     <Compile Include="PasteOption.cs">
       <SubType>Form</SubType>
@@ -107,6 +108,9 @@
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="RichTextBoxEx.cs">
+      <SubType>Component</SubType>
     </Compile>
     <Compile Include="SimpleMessageBox.cs">
       <SubType>Form</SubType>
