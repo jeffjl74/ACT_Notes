@@ -13,6 +13,7 @@ namespace ACT_Notes
 {
     public partial class Differences : Form
     {
+        public event EventHandler OnReplace;
         string _left;
         string _right;
 
@@ -31,8 +32,11 @@ namespace ACT_Notes
             webBrowser2.DocumentText = _right;
             if (Owner != null)
             {
-                Point p = new Point(Owner.Left + Owner.Width / 2 - this.Width / 2, Owner.Top + Owner.Height / 2 - this.Height / 2);
+                this.Width = Owner.Width;
+                this.Height = Owner.Height / 2;
+                Point p = new Point(Owner.Left, Owner.Top + Owner.Height / 2  - 36); //36 is height of plugin's [Compare] panel
                 this.Location = p;
+                splitContainer1.SplitterDistance = this.Width / 2;
             }
             this.TopMost = true;
         }
@@ -140,6 +144,11 @@ namespace ACT_Notes
             return result;
         }
 
-
+        private void buttonRepalce_Click(object sender, EventArgs e)
+        {
+            if(OnReplace != null)
+                OnReplace.Invoke(this, new EventArgs());
+            Close();
+        }
     }
 }

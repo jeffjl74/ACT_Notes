@@ -785,7 +785,7 @@ namespace ACT_Notes
                     treeViewZones.SelectedNode.EnsureVisible();
                 }
                 else
-                    SimpleMessageBox.Show(ActGlobals.oFormActMain, "Not found", "Find");
+                    SimpleMessageBox.ShowDialog(ActGlobals.oFormActMain, $"\\b {textBoxZoneFind.Text}\\b0  Not found", "Find");
             }
         }
 
@@ -801,7 +801,7 @@ namespace ACT_Notes
                 treeViewZones.SelectedNode.EnsureVisible();
             }
             else
-                SimpleMessageBox.Show(ActGlobals.oFormActMain, "No more found", "Find");
+                SimpleMessageBox.ShowDialog(ActGlobals.oFormActMain, $"\\b {textBoxZoneFind.Text}\\b0  Not found", "Find");
 
         }
 
@@ -1916,19 +1916,44 @@ namespace ACT_Notes
                 }
             }
 
-            string textA = string.Join("\n", orig.ToArray());
-            string textB = string.Join("\n", paste.ToArray());
-            List<string> html = Differences.DiffHtml(textA, textB);
-            if(html.Count == 2)
+            if(orig.Count > 0 && paste.Count > 0)
             {
-                Differences diff = new Differences(ActGlobals.oFormActMain, html[0], html[1]);
-                if (treeViewZones.SelectedNode != null)
+                string textA = string.Join("\n", orig.ToArray());
+                string textB = string.Join("\n", paste.ToArray());
+                List<string> html = Differences.DiffHtml(textA, textB);
+                if (html.Count == 2)
                 {
-                    if (treeViewZones.SelectedNode.Parent != null)
-                        diff.Text = $"Differences: {treeViewZones.SelectedNode.Parent.Text} / {treeViewZones.SelectedNode.Text}";
+                    Differences diff = new Differences(ActGlobals.oFormActMain, html[0], html[1]);
+                    if (treeViewZones.SelectedNode != null)
+                    {
+                        if (treeViewZones.SelectedNode.Parent != null)
+                            diff.Text = $"Differences: {treeViewZones.SelectedNode.Parent.Text} / {treeViewZones.SelectedNode.Text}";
+                    }
+                    diff.OnReplace += Diff_OnReplace;
+                    diff.Show();
                 }
-                diff.Show();
-                PositionChildForm(diff, ActGlobals.oFormActMain.Location);
+            }
+        }
+
+        private void Diff_OnReplace(object sender, EventArgs e)
+        {
+            RichTextBox rtbOrig = new RichTextBox();
+            rtbOrig.Rtf = richEditCtrl1.rtbDoc.Rtf;
+            int index = rtbOrig.Find(pastePrefix);
+            if(index != -1)
+            {
+                rtbOrig.Select(index, rtbOrig.Text.Length - index);
+                string save = rtbOrig.SelectedRtf;
+                rtbOrig.Rtf = save;
+                // delete the first line, the delimeter
+                rtbOrig.SelectionStart = 0;
+                rtbOrig.SelectionLength = rtbOrig.Lines[0].Length + 1; // +1 for the \n
+                rtbOrig.SelectedText = "";
+                // copy the result to the displayed editor
+                richEditCtrl1.rtbDoc.Rtf = rtbOrig.Rtf;
+
+                if(rtbOrig.Find(pastePrefix) == -1)
+                    buttonCompare.Enabled = false;
             }
         }
 
