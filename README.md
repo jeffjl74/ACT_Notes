@@ -17,10 +17,10 @@ _Version 1.1_
 * Added **[Replace]** and **[Discard]** buttons to the Compare dialog to provide a single-click way to replace the original note with a received note or discard the received note, respectively.
 * Reworked the editor color pickers.
 * Notes with images can now compressed when sharing. This reduces the number of sections.
-  * __If the receiver of the note is not running version 1.1 of the plugin, this will cause an error on their end. Be sure everyone has updated to version 1.1 before using this feature.__
+  * __If the receiver of the note is not running version 1.1 of the plugin, this will cause an error on their end when they try to view the note. Be sure everyone has updated to version 1.1 before using this feature.__
   * Compressed notes are incomprehensible when seen in the chat window.
 * Plugin should do a better job of matching mob notes with mob kills.
-* Reworked the "find" highlighting to co-exist with user background colors.
+* Reworked the "find" and its highlighting to co-exist with user background colors.
 
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
@@ -89,7 +89,7 @@ There are two methods for sharing a note. The first method is similar to how a t
 
  Notes with even a small image in them will result in a lot of sections, making the macro the only reasonable option. Version 1.1 of the plugin adds an option to compress notes with images. This typically reduces the number of sections. But the recipient of the note must be running version 1.1 of the plugin to decode the compression. **Version 1.0 of the plugin will generate an error every time it tries to view the note if it receives a compressed note.**
 
-Once all recipients have updated to plugin version 1.1, the **Compress Images** checkbox can remain checked. The checkbox has no effect if the note does not contain an image.
+Once all recipients have updated to plugin version 1.1, the **Compress Images** checkbox can remain checked. The checkbox has no effect if the note does not contain an image since there is not a big difference between the size of a compressed and uncompressed note that does not contain any image.
 
 Below is an example that results in 200 copy sections or three macros. This particular note is 61 sections or one macro when compressed.
 
