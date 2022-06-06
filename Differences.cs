@@ -14,6 +14,7 @@ namespace ACT_Notes
     public partial class Differences : Form
     {
         public event EventHandler OnReplace;
+        public event EventHandler OnDiscard;
         string _left;
         string _right;
 
@@ -34,7 +35,7 @@ namespace ACT_Notes
             {
                 this.Width = Owner.Width;
                 this.Height = Owner.Height / 2;
-                Point p = new Point(Owner.Left, Owner.Top + Owner.Height / 2  - 36); //36 is height of plugin's [Compare] panel
+                Point p = new Point(Owner.Left, Owner.Top + Owner.Height / 2  - 38); //38 avoids the plugin's [Compare] panel
                 this.Location = p;
                 splitContainer1.SplitterDistance = this.Width / 2;
             }
@@ -148,6 +149,18 @@ namespace ACT_Notes
         {
             if(OnReplace != null)
                 OnReplace.Invoke(this, new EventArgs());
+            Close();
+        }
+
+        private void buttonDiscard_Click(object sender, EventArgs e)
+        {
+            if(OnDiscard != null)
+                OnDiscard.Invoke(this, new EventArgs());
+            Close();
+        }
+
+        private void buttonClose_Click(object sender, EventArgs e)
+        {
             Close();
         }
     }

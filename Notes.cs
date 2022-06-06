@@ -1930,6 +1930,7 @@ namespace ACT_Notes
                             diff.Text = $"Differences: {treeViewZones.SelectedNode.Parent.Text} / {treeViewZones.SelectedNode.Text}";
                     }
                     diff.OnReplace += Diff_OnReplace;
+                    diff.OnDiscard += Diff_OnDiscard;
                     diff.Show();
                 }
             }
@@ -1940,7 +1941,7 @@ namespace ACT_Notes
             RichTextBox rtbOrig = new RichTextBox();
             rtbOrig.Rtf = richEditCtrl1.rtbDoc.Rtf;
             int index = rtbOrig.Find(pastePrefix);
-            if(index != -1)
+            if (index != -1)
             {
                 rtbOrig.Select(index, rtbOrig.Text.Length - index);
                 string save = rtbOrig.SelectedRtf;
@@ -1952,7 +1953,32 @@ namespace ACT_Notes
                 // copy the result to the displayed editor
                 richEditCtrl1.rtbDoc.Rtf = rtbOrig.Rtf;
 
-                if(rtbOrig.Find(pastePrefix) == -1)
+                if (rtbOrig.Find(pastePrefix) == -1)
+                    buttonCompare.Enabled = false;
+            }
+        }
+
+        private void Diff_OnDiscard(object sender, EventArgs e)
+        {
+            RichTextBox rtbOrig = new RichTextBox();
+            rtbOrig.Rtf = richEditCtrl1.rtbDoc.Rtf;
+            // find the first delimeter
+            int index1 = rtbOrig.Find(pastePrefix);
+            if(index1 != -1)
+            {
+                int end = rtbOrig.Text.Length - index1;
+                // is there a second delimeter?
+                int index2 = rtbOrig.Find(pastePrefix, index1 + 1, RichTextBoxFinds.None);
+                if (index2 != -1)
+                    end = index2 - index1;
+                // select the part to discard
+                rtbOrig.Select(index1, end);
+                rtbOrig.SelectedRtf = "";
+
+                // copy the result to the displayed editor
+                richEditCtrl1.rtbDoc.Rtf = rtbOrig.Rtf;
+
+                if (rtbOrig.Find(pastePrefix) == -1)
                     buttonCompare.Enabled = false;
             }
         }

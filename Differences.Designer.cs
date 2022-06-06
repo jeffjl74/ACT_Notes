@@ -37,6 +37,8 @@
             this.panel1 = new System.Windows.Forms.Panel();
             this.buttonRepalce = new System.Windows.Forms.Button();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.buttonDiscard = new System.Windows.Forms.Button();
+            this.buttonClose = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -112,6 +114,8 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.buttonClose);
+            this.panel1.Controls.Add(this.buttonDiscard);
             this.panel1.Controls.Add(this.buttonRepalce);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panel1.Location = new System.Drawing.Point(0, 418);
@@ -123,7 +127,7 @@
             // 
             this.buttonRepalce.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.buttonRepalce.DialogResult = System.Windows.Forms.DialogResult.OK;
-            this.buttonRepalce.Location = new System.Drawing.Point(359, 5);
+            this.buttonRepalce.Location = new System.Drawing.Point(264, 5);
             this.buttonRepalce.Name = "buttonRepalce";
             this.buttonRepalce.Size = new System.Drawing.Size(75, 23);
             this.buttonRepalce.TabIndex = 0;
@@ -131,6 +135,30 @@
             this.toolTip1.SetToolTip(this.buttonRepalce, "Replace Original with Received");
             this.buttonRepalce.UseVisualStyleBackColor = true;
             this.buttonRepalce.Click += new System.EventHandler(this.buttonRepalce_Click);
+            // 
+            // buttonDiscard
+            // 
+            this.buttonDiscard.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonDiscard.Location = new System.Drawing.Point(363, 4);
+            this.buttonDiscard.Name = "buttonDiscard";
+            this.buttonDiscard.Size = new System.Drawing.Size(75, 23);
+            this.buttonDiscard.TabIndex = 1;
+            this.buttonDiscard.Text = "Discard";
+            this.toolTip1.SetToolTip(this.buttonDiscard, "Discard Received Note");
+            this.buttonDiscard.UseVisualStyleBackColor = true;
+            this.buttonDiscard.Click += new System.EventHandler(this.buttonDiscard_Click);
+            // 
+            // buttonClose
+            // 
+            this.buttonClose.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.buttonClose.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+            this.buttonClose.Location = new System.Drawing.Point(462, 3);
+            this.buttonClose.Name = "buttonClose";
+            this.buttonClose.Size = new System.Drawing.Size(75, 23);
+            this.buttonClose.TabIndex = 2;
+            this.buttonClose.Text = "CLose";
+            this.buttonClose.UseVisualStyleBackColor = true;
+            this.buttonClose.Click += new System.EventHandler(this.buttonClose_Click);
             // 
             // Differences
             // 
@@ -140,6 +168,7 @@
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.panel1);
             this.Name = "Differences";
+            this.ShowIcon = false;
             this.Text = "Differences";
             this.Shown += new System.EventHandler(this.Differences_Shown);
             this.splitContainer1.Panel1.ResumeLayout(false);
@@ -163,5 +192,7 @@
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Button buttonRepalce;
         private System.Windows.Forms.ToolTip toolTip1;
+        private System.Windows.Forms.Button buttonDiscard;
+        private System.Windows.Forms.Button buttonClose;
     }
 }
