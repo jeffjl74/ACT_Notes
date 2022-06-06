@@ -14,11 +14,13 @@ An example is shown below.
 ## Upadate Notes
 _Version 1.1_
 * Added the ability to set the background color in the editor.
+* Added **[Replace]** and **[Discard]** buttons to the Compare dialog to provide a single-click way to replace the original note with a received note or discard the received note, respectively.
 * Reworked the editor color pickers.
-* To reduce the number of sections while sharing, notes with images can now compressed.
+* Notes with images can now compressed when sharing. This reduces the number of sections.
   * __If the receiver of the note is not running version 1.1 of the plugin, this will cause an error on their end. Be sure everyone has updated to version 1.1 before using this feature.__
-  * Compressed notes will be incomprehensible when seen in the chat window.
-* Updated matching mob notes with mobs killed. Should match more reliably.
+  * Compressed notes are incomprehensible when seen in the chat window.
+* Plugin should do a better job of matching mob notes with mob kills.
+* Reworked the "find" highlighting to co-exist with user background colors.
 
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
@@ -76,7 +78,7 @@ The `Copy to XML` menu allows sharing notes in ACT with other users of the plugi
 ### Share Channel
 For the first XML share in a zone, the plugin guesses whether you are likely in a group or raid from the selected zone name
 and chooses the supposed prefix, `/g` or `/r`. This can be changed by selecting the appropriate button.
-To paste in a different channel, use the `custom` choice. For example, if you wanted to paste to the guild, you would select the `custom` button and enter `/gu` in the textbox. The selected prefix is saved for the zone.
+To paste in a different channel, use the `custom` choice. For example, if you wanted to paste to the guild, you would select the `custom` button and enter `/gu` in the textbox. The selected prefix is saved for each zone.
 
 ### Note Segmenting
 EQII can only paste around 250 characters at a time in a chat window, and allows about 1000 characters per line and 16 lines in a macro. Even a small shared note requires multiple sections.
@@ -87,7 +89,7 @@ There are two methods for sharing a note. The first method is similar to how a t
 
  Notes with even a small image in them will result in a lot of sections, making the macro the only reasonable option. Version 1.1 of the plugin adds an option to compress notes with images. This typically reduces the number of sections. But the recipient of the note must be running version 1.1 of the plugin to decode the compression. **Version 1.0 of the plugin will generate an error every time it tries to view the note if it receives a compressed note.**
 
-Once all recipients have updated to plugin version 1.1, the **Compress Images** checkbox can remain checked.
+Once all recipients have updated to plugin version 1.1, the **Compress Images** checkbox can remain checked. The checkbox has no effect if the note does not contain an image.
 
 Below is an example that results in 200 copy sections or three macros. This particular note is 61 sections or one macro when compressed.
 
@@ -151,6 +153,10 @@ When an incoming note is appended to an existing note, a delimiter line is added
 The comparison shows the ***text*** differences at the line level. Formatting is ignored. Multiple spaces are ignored. Character case is ignored. 
 
 Lines that are different are shown in yellow. Grey lines are used to keep the unchanged lines aligned - this works best if the difference window is wide enough to hold an entire note line on one screen line.
+
+The **[Replace]** button overwrites the "Original" note with the (first) received note. The delimiter line determines note boundaries. If there is more than one received note, the second and subsequent remain in the resulting note.
+
+The **[Discard]** button removes the "Received" note from the editor. The delimiter line determines note boundaries. If there is more than one received note, the second and subsequent remain in the resulting note.
 
 An example is shown below:
 
