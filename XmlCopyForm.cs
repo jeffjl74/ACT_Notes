@@ -24,9 +24,28 @@ namespace ACT_Notes
         int nextSectionIndex = 0;
         const string doFileName = "note-macro{0}.txt";
         bool loading = true;
+        bool preIncremet = false;
+        bool autoIncrementing = false;
         bool _compress = false;
         bool compressed = false;
         public event EventHandler CompressCheckChanged;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+        List<IntPtr> _handles = new List<IntPtr>();
+
+        // simple class to use as the listbox item
+        enum ItemType { Section, Command }
+        class ListItem
+        {
+            public string description;
+            public ItemType type;
+            public override string ToString()
+            {
+                return description;
+            }
+        }
+
 
         public XmlCopyForm(Zone zone, Mob mob, bool compressChecked)
         {
@@ -40,7 +59,7 @@ namespace ACT_Notes
 
         private void XmlCopyForm_Load(object sender, EventArgs e)
         {
-            ReloadList();
+            ReloadCopyList();
 
             if(!string.IsNullOrEmpty(_zone.Prefix))
             {
@@ -68,6 +87,33 @@ namespace ACT_Notes
             }
 
             checkBoxCompress.Checked = _compress;
+
+            // look for game instances
+            Process[] processes = Process.GetProcessesByName("EverQuest2");
+            if (processes.Length > 0)
+            {
+                _handles = new List<IntPtr>();
+                foreach (Process p in processes)
+                {
+                    // only want the main window
+                    if (p.MainWindowTitle.StartsWith("EverQuest II ("))
+                    {
+                        if (!_handles.Contains(p.MainWindowHandle))
+                            _handles.Add(p.MainWindowHandle);
+                    }
+                }
+                if (_handles.Count > 0)
+                {
+                    foreach (IntPtr intPtr in _handles)
+                    {
+                        comboBoxGame.Items.Add(intPtr);
+                    }
+                    comboBoxGame.Items.Add(""); // item to allow user to de-select game activation
+                    comboBoxGame.SelectedIndex = 0;
+                    // switch to macro list
+                    buttonMacro_Click(null, null);
+                }
+            }
 
             loading = false;
         }
@@ -321,35 +367,97 @@ namespace ACT_Notes
             {
                 if (listBox1.SelectedIndex >= 0)
                 {
-                    Clipboard.SetText(prefix + chatSnippets[listBox1.SelectedIndex]);
-                    labelReady.Text = $"Section {listBox1.SelectedIndex + 1} copied to clipboard";
-                    if (listBox1.SelectedIndex < chatSnippets.Count - 1)
-                        listBox1.SelectedIndex++;
+                    ListItem listItem = (ListItem)listBox1.Items[listBox1.SelectedIndex];
+                    if (listItem.type == ItemType.Section)
+                    {
+                        if(preIncremet)
+                        {
+                            autoIncrementing = true;
+                            if (listBox1.SelectedIndex < chatSnippets.Count - 1)
+                                listBox1.SelectedIndex++;
+                            else
+                            {
+                                listBox1.SelectedIndex = -1;
+                                preIncremet = false;
+                                toolStripStatusLabel1.Text = "No more items.";
+                            }
+                            autoIncrementing = false;
+                        }
+                        else
+                        {
+                            // first time through, we use the selected item
+                            // next time, we will go to the next item
+                            preIncremet = true;
+                            toolTip1.SetToolTip(buttonCopy, "Press to copy the next XML item to the clipboard");
+                        }
+                        if (listBox1.SelectedIndex >= 0)
+                        {
+                            Clipboard.SetText(prefix + chatSnippets[listBox1.SelectedIndex]);
+
+                            int lineNum = listBox1.SelectedIndex + 1;
+                            bool gameActivated = false;
+                            if (comboBoxGame.Items.Count > 0 && comboBoxGame.SelectedIndex >= 0)
+                            {
+                                // if we found an EQII game window, activate it
+                                if (!string.IsNullOrEmpty(comboBoxGame.Items[comboBoxGame.SelectedIndex].ToString()))
+                                {
+                                    toolStripStatusLabel1.Text = String.Format(@"<Enter><Ctrl-v> to paste sect {0}. [Copy] for next", lineNum);
+                                    IntPtr handle = (IntPtr)comboBoxGame.Items[comboBoxGame.SelectedIndex];
+                                    SetForegroundWindow(handle);
+                                    gameActivated = true;
+                                }
+                            }
+                            if (!gameActivated)
+                            {
+                                toolStripStatusLabel1.Text = $"Section {lineNum} copied. [Copy] for next.";
+                            }
+                        }
+                    }
                     else
-                        listBox1.SelectedIndex = -1;
+                    {
+                        // switching from macro list to section list
+                        ReloadCopyList();
+                    }
                 }
                 else
                 {
-                    SimpleMessageBox.Show(this, "Select a section to copy to the clipboard.", "Error");
-                    labelReady.Text = string.Empty;
+                    if (listBox1.Items.Count > 0)
+                    {
+                        ListItem listItem = (ListItem)listBox1.Items[0];
+                        if (listItem.type != ItemType.Section)
+                            ReloadCopyList();
+                        else
+                        {
+                            SimpleMessageBox.Show(this, "Select a section to copy to the clipboard.", "Error");
+                            toolStripStatusLabel1.Text = string.Empty;
+                        }
+                    }
+                    else
+                        ReloadCopyList();
                 }
             }
             catch (Exception)
             {
                 SimpleMessageBox.Show(this, "Clipboard copy failed. Try again.", "Failed");
+                preIncremet = false;
             }
         }
 
-        private void ReloadList()
+        private void ReloadCopyList()
         {
             listBox1.Items.Clear();
+            preIncremet = false;
+            toolTip1.SetToolTip(buttonMacro, "Press to generate and list macro files");
+            toolTip1.SetToolTip(buttonCopy, "Press to copy the selected XML item to the clipboard");
             for (int i = 1; i <= chatSnippets.Count; i++)
             {
-                listBox1.Items.Add($"Copy section #{i} to clipboard");
+                ListItem listItem = new ListItem { description = $"Copy section #{i} to clipboard", type = ItemType.Section };
+                listBox1.Items.Add(listItem);
             }
             if (chatSnippets.Count > 0)
                 listBox1.SelectedIndex = 0;
-            labelReady.Text = string.Empty;
+            else
+                toolStripStatusLabel1.Text = string.Empty;
         }
 
         private void buttonDone_Click(object sender, EventArgs e)
@@ -376,6 +484,98 @@ namespace ACT_Notes
 
         private void buttonMacro_Click(object sender, EventArgs e)
         {
+            bool needLoad = false;
+            if(listBox1.SelectedIndex >= 0)
+            {
+                if (listBox1.Items.Count > 0)
+                {
+                    ListItem listItem = (ListItem)listBox1.Items[0];
+                    if (listItem.type == ItemType.Command)
+                    {
+                        // already have the macro list
+                        needLoad = false;
+                        // move to the next one?
+                        if (preIncremet)
+                        {
+                            autoIncrementing = true;
+                            if (listBox1.SelectedIndex < listBox1.Items.Count - 1)
+                                listBox1.SelectedIndex++;
+                            else
+                            {
+                                listBox1.SelectedIndex = -1;
+                                toolStripStatusLabel1.Text = "No more items.";
+                            }
+                            autoIncrementing = false;
+                        }
+                        else
+                        {
+                            // first time through, we use the selected item
+                            // next time, we will go to the next item
+                            if(!loading)
+                                preIncremet = true; // next time, we increment first
+                            toolTip1.SetToolTip(buttonMacro, "Press to copy the next line to the clipboard");
+                        }
+                        if (listBox1.SelectedIndex >= 0 && !loading)
+                        {
+                            try
+                            {
+                                int lineNum = listBox1.SelectedIndex + 1;
+                                string text = ((ListItem)listBox1.Items[listBox1.SelectedIndex]).description;
+                                Clipboard.SetText(text);
+
+                                bool gameActivated = false;
+                                if (comboBoxGame.Items.Count > 0 && comboBoxGame.SelectedIndex >= 0)
+                                {
+                                    // if we found an EQII game window, activate it
+                                    if (!string.IsNullOrEmpty(comboBoxGame.Items[comboBoxGame.SelectedIndex].ToString()))
+                                    {
+                                        toolStripStatusLabel1.Text = String.Format(@"<Enter><Ctrl-v> to paste line {0}. [Macro] for next", lineNum);
+                                        IntPtr handle = (IntPtr)comboBoxGame.Items[comboBoxGame.SelectedIndex];
+                                        SetForegroundWindow(handle);
+                                        gameActivated = true;
+                                    }
+                                }
+                                if(!gameActivated)
+                                {
+                                    toolStripStatusLabel1.Text = $"Line {lineNum} copied. [Macro] for next.";
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                SimpleMessageBox.Show(this, "Clipboard copy failed. Try again.", "Failed");
+                                preIncremet = false;
+                            }
+                        }
+                    }
+                    else
+                        needLoad = true;
+                }
+            }
+            else
+            {
+                if (listBox1.Items.Count > 0)
+                {
+                    ListItem listItem = (ListItem)listBox1.Items[0];
+                    if (listItem.type != ItemType.Command)
+                        needLoad = true;
+                    else
+                    {
+                        SimpleMessageBox.Show(this, "Select a line to copy to the clipboard.", "Error");
+                        toolStripStatusLabel1.Text = string.Empty;
+                    }
+                }
+                else
+                    needLoad = true;
+            }
+
+            if (needLoad)
+            {
+                ReloadMacroList();
+            }
+        }
+
+        private void ReloadMacroList()
+        {
             string prefix = string.Empty;
             if (radioButtonG.Checked)
                 prefix = "g ";
@@ -390,6 +590,9 @@ namespace ACT_Notes
                     prefix = prefix + " ";
             }
 
+            toolTip1.SetToolTip(buttonMacro, "Press to copy the selected line to the clipboard");
+            toolTip1.SetToolTip(buttonCopy, "Press to generate and list XML sections");
+
             List<string> lines = Breakup(_zone, _mob, maxMacroLen - prefix.Length);
 
             int fileCount = 1;
@@ -399,9 +602,9 @@ namespace ACT_Notes
             do
             {
                 StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < 16 && snippetIndex<lines.Count; i++, lineCount++, snippetIndex++)
+                for (int i = 0; i < 16 && snippetIndex < lines.Count; i++, lineCount++, snippetIndex++)
                 {
-                    if(!string.IsNullOrEmpty(prefix))
+                    if (!string.IsNullOrEmpty(prefix))
                         sb.Append(prefix);
                     sb.Append(lines[snippetIndex]);
                     sb.Append("\r\n");
@@ -417,20 +620,27 @@ namespace ACT_Notes
                 fileCount++;
             } while (snippetIndex < lines.Count);
 
-            string firstFile = string.Format(doFileName, 1);
-            string lastFile = string.Format(doFileName, numFiles);
-            if (numFiles > 1)
-                labelReady.Text = $"Wrote {firstFile} thru {lastFile}";
-            else
-                labelReady.Text = $"Wrote {firstFile}";
+            listBox1.Items.Clear();
+            for (int i = 0; i < numFiles; i++)
+            {
+                string file = string.Format(doFileName, i + 1);
+                ListItem listItem = new ListItem { description = $"/do_file_commands {file}", type = ItemType.Command };
+                listBox1.Items.Add(listItem);
+            }
+            if (listBox1.Items.Count > 0)
+            {
+                listBox1.SelectedIndex = 0;
+                preIncremet = false;
+                toolStripStatusLabel1.Text = "Press [Macro] to copy the selected line";
+            }
         }
-
         private void radioButtonCustom_CheckedChanged(object sender, EventArgs e)
         {
             if (!loading)
             {
                 chatSnippets = Breakup(_zone, _mob, maxChatLen);
-                ReloadList();
+                ReloadCopyList();
+                ReloadMacroList();
             }
         }
 
@@ -439,7 +649,8 @@ namespace ACT_Notes
             if (radioButtonCustom.Checked)
             {
                 chatSnippets = Breakup(_zone, _mob, maxChatLen);
-                ReloadList();
+                ReloadCopyList();
+                ReloadMacroList();
             }
         }
 
@@ -450,7 +661,34 @@ namespace ACT_Notes
                 CompressCheckChanged.Invoke(this, new CompressCheckChangedEventArgs { isChecked = checkBoxCompress.Checked});
             }
             chatSnippets = Breakup(_zone, _mob, maxChatLen);
-            ReloadList();
+            ReloadCopyList();
+            ReloadMacroList();
+        }
+
+        private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!loading)
+            {
+                if (listBox1.SelectedIndex >= 0)
+                {
+                    ListItem listItem = (ListItem)listBox1.Items[listBox1.SelectedIndex];
+                    toolStripStatusLabel1.Text = String.Format("Press {0} to copy selection to clipboard", listItem.type == ItemType.Command ? "[Macro]" : "[Copy]");
+                    if (!autoIncrementing)
+                        preIncremet = false;
+                }
+            }
+        }
+
+        private void radioButtonG_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!loading && radioButtonG.Checked)
+                ReloadMacroList();
+        }
+
+        private void radioButtonR_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!loading && radioButtonR.Checked)
+                ReloadMacroList();
         }
     }
 }

@@ -11,16 +11,11 @@ An example is shown below.
 
 ![Overview](images/Overview.png)
 
-## Upadate Notes
-_Version 1.1_
-* Added the ability to set the background color in the editor.
-* Added **[Replace]** and **[Discard]** buttons to the Compare dialog to provide a single-click way to replace the original note with a received note or discard the received note, respectively.
-* Reworked the editor color pickers.
-* Notes with images can now compressed when sharing. This reduces the number of sections.
-  * __If the receiver of the note is not running version 1.1 of the plugin, this will cause an error on their end when they try to view the note. Be sure everyone has updated to version 1.1 before using this feature.__
-  * Compressed notes are incomprehensible when seen in the chat window.
-* Plugin should do a better job of matching mob notes with mob kills.
-* Reworked the "find" and its highlighting to co-exist with user background colors.
+## Update Notes
+_Version 1.2_
+* When [sharing notes](#sharing-notes), pressing the __[Macro]__ button now presents the list of macro files in the listbox.
+* When [sharing notes](#sharing-notes), the plugin now searches for any running EQII game(s) and activates the selected game window when the __[Macro]__ or __[Copy]__ button is pressed, so the next keypress goes to the game instead of the plugin.
+* When [sharing notes](#sharing-notes), if a running EQII game is found, the initial view is the list of `do_file_commands` to share the note via macro(s).
 
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
@@ -87,37 +82,51 @@ The plugin automatically breaks a note into appropriate sharable sizes.
 
 There are two methods for sharing a note. The first method is similar to how a trigger is shared in ACT. The second method uses EQII macros.
 
- Notes with even a small image in them will result in a lot of sections, making the macro the only reasonable option. Version 1.1 of the plugin adds an option to compress notes with images. This typically reduces the number of sections. But the recipient of the note must be running version 1.1 of the plugin to decode the compression. **Version 1.0 of the plugin will generate an error every time it tries to view the note if it receives a compressed note.**
+The plugin searches for an EQII game window when it opens the share dialog. If a game window is found, the dialog shows the macro command list by default. The clipboard copy list can be show by pressing the __[Copy]__ button.
 
-Once all recipients have updated to plugin version 1.1, the **Compress Images** checkbox can remain checked. The checkbox has no effect if the note does not contain an image since there is not a big difference between the size of a compressed and uncompressed note that does not contain any image.
+ Notes with even a small image in them will result in a lot of sections, making the macro the only reasonable option. Version 1.1 of the plugin adds an option to compress notes with images. This typically reduces the number of sections. But the recipient of the note must be running plugin version 1.1 or newer to decode the compression. **Version 1.0 of the plugin will generate an error every time it tries to view the note if it receives a compressed note.**
 
-Below is an example that results in 200 copy sections or three macros. This particular note is 61 sections or one macro when compressed.
+Once all recipients have updated to plugin version 1.1 or newer, the **Compress Images** checkbox can remain checked. The checkbox has no effect if the note does not contain an image since there is not a big difference between the size of a compressed and uncompressed note that does not contain any image.
+
+Below is an example that results in one macro when compressed. This particular note is 200 copy sections or three macros when not compressed.
 
 ![icon](images/big-image-sections.png)
 
 #### Method 1: Paste Share
-To paste into a chat window, the sender of the note needs to copy each section from the plugin using the plugin's **[Copy]** button and then use `Ctrl-V` to paste it in the chat window, as shown below. In this example, three sections are required. The `/g` selection prefixes the section with the groupsay command. The user follows the procedure below:
-1. verify or select the appropriate prefix and image compression
-2. press the **[Copy]** button to put the first section in the clipboard
-2. click the game chat window and press `Ctrl-V`
-3. the plugin automatically moved to the second section, so the user can just click the plugin **[Copy]** again
-4. repeat until all sections are copied to game chat
-5. press **[Done]** to dismiss the dialog
+To paste into a chat window, the sender of the note needs to copy each section from the plugin using the plugin's **[Copy]** button and then use `Ctrl-V` to paste it in the chat window. In this example, three sections are required. The `/g` selection prefixes the section with the groupsay command. 
+
+When the __Game Window:__ is not blank, pressing the __[Macro]__ or __[Copy]__ button activates the selected game window. Once the game window is activated, the chat box can be activated by pressing the `Enter` key. (`Enter` is the default key binding. Use whatever key is set in _Options->Controls->Chat Keys->Begin Chat_.) The user can then press `Ctrl-v` to paste and `Enter` to complete the command.
+
+In the example below, since a game window was found, the initial list contains the macro commands. Pressing the __[Copy]__ button switches the list to the section list. The user then follows the procedure below:
+1. Verify or select the appropriate prefix and image compression
+2. Press the **[Copy]** button to put the selected section in the clipboard and activate the game window.
+3. Press `Enter` to activate the game chat window
+4. Press `Ctrl-V` to paste the section.
+4. Press `Enter` again to finish the paste.
+5. Repeat from Step 2. The plugin automatically moves to the next section when the **[Copy]** button is pressed.
+6. Repeat until all sections are pasted into game chat.
+7. Press **[Done]** to dismiss the dialog.
 
 This process is illustrated below.
 
 ![copy-paste](images/paste.gif)
 
 #### Method 2: Macro Share
-The plugin's **[Macro]** button generally takes fewer steps to share a note. Pressing the **[Macro]** button generates enough text files to share the note. The text file names follow the format `note-macroX.txt` where `X` is a number starting with 1 and incrementing until enough files are created to share the entire note, e.g. the first 16,000 or so characters would be shared using the macro file `note-macro1.txt`. To share using macros, the user follows the procedure below:
-1. Verify or select the appropriate prefix and image compression
-2. press the **[Macro]** button
-3. the plugin creates the macro file(s)
-4. the note is shared in EQII using the slash command `/do_file_commands note-macro1.txt` in an EQII chat window
-5. continue with `/do_file_commands note-macro2.txt`, etc. as required
-6. press **[Done]** to dismiss the dialog
+The plugin's **[Macro]** button generally takes fewer steps to share a note. Pressing the **[Macro]** button generates enough text files to share the note. The text file names follow the format `note-macroX.txt` where `X` is a number starting with 1 and incrementing until enough files are created to share the entire note, e.g. the first 16,000 or so characters would be shared using the macro file `note-macro1.txt`.
 
-This process is illustrated below.
+When the plugin finds an EQII game window, the share dialog initially opens with the list of macro commands.
+
+To share using macros, the user follows the procedure below:
+1. Verify or select the appropriate prefix and image compression.
+2. Press the **[Macro]** button to put the selected command in the clipboard and activate the game window.
+3. Press `Enter` to activate the game chat window.
+4. Press `Ctrl-v` to paste the command.
+5. Press `Enter` to finish the paste.
+5. Continue from Step 2. The plugin automatically moves to the next line when the **[Macro]** button is pressed.
+6. Repeat until all commands are pasted into game chat.
+6. press **[Done]** to dismiss the dialog.
+
+This process is illustrated below for a note with compressed images.
 
 ![macro](images/macro.gif)
 
