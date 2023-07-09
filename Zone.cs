@@ -15,6 +15,11 @@ namespace ACT_Notes
         public PasteType Paste { get; set; }
         [XmlAttribute]
         public string Prefix { get; set; }
+        [XmlAttribute]
+        public int AudioDelay { get; set; } = 5;
+        [XmlAttribute]
+        public int VisualDelay { get; set; } = 5;
+        public bool RelaxedKillCheck { get; set; }
         public string Notes { get; set; }
         public List<Mob> Mobs { get; set; }
 

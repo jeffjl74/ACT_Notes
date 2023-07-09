@@ -11,17 +11,22 @@ An example is shown below.
 
 ![Overview](images/Overview.png)
 
-## Update Notes
-_Version 1.2_
-* When [sharing notes](#sharing-notes), pressing the __[Macro]__ button now presents the list of macro files in the listbox.
-* When [sharing notes](#sharing-notes), the plugin now searches for any running EQII game(s) and activates the selected game window when the __[Macro]__ or __[Copy]__ button is pressed, so the next keypress goes to the game instead of the plugin.
-* When [sharing notes](#sharing-notes), if a running EQII game is found, the initial view is the list of `do_file_commands` to share the note via macro(s).
+## Version Notes
+_Version 1.3_
+* Another attempt to improve recognition of when a [mob dies](#monitoring).
+* Add a choice to share the notes for the zone and all its mobs in a single [share dialog](#sharing-notes).
+  * This works best if all players update to plugin version 1.3 and have the sender whitelisted.
+* Add [alert](#alerts) tags in the note text.
+* Aautomatic selection of the zone level note now only occurs if the zone note has an alert. Otherwise, the first mob is selected. 
+* Simplify handling of EQII color [coded zone names](#adding-zones-and-mobs) like __\\#00FF00Buried Takish'Hiz: Empire of Antiquity [Contested] 2__.
 
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
 The **[Add Mob]** button creates a new mob in the currently selected zone.
 
 Zone and mob names can be arbitrary text, but if they match in-game zone and mob names, the plugin will track when you enter the zone or kill the mob.
+
+For EQII zones with a color code and/or instance number, the plugin can match the zone name with a category that does not include the color code or the instance number. So if you don't want a category like __\\#00FF00Buried Takish'Hiz: Empire of Antiquity [Contested] 2__, a category name of __Buried Takish'Hiz: Empire of Antiquity [Contested]__ will still match when entering that zone.
 
 The easiest way to add a zone or mob to the list is to use the encounter list on ACT's main tab.
 The default text when adding a new zone or mob is the selected zone name or mob name in the main encounter list.
@@ -50,25 +55,52 @@ The editor can save many image types using either `Ctrl-V` to insert from the cl
 Whenever a player enters a zone, the plugin searches its zone list for a matching zone name.
 If a match is found, that zone is selected. 
 
-If the zone itself has a note, that note is displayed.
+If the zone itself has a note that contains any alerts, that note is displayed.
 
-If there is no note for the zone, but there are mobs, the first mob in the zone's list is selected, whether it has a note or not.
+If there are no alerts for the zone, but there are mobs, the first mob in the zone's list is selected, whether it has a note or not.
 
 When an encounter ends, the plugin looks for the killed enemy's name in its mob list for the zone. 
 If the name is found, the next mob in the zone list is automatically selected. 
 The intent is to display the note for the mob you are about to kill. 
-But this process is not 100% reliable. 
-It's just an aid to save you maybe one click to select the notes for your next mob.
+
+But this process is not 100% reliable since EQII logs are inconsistent in reporting the death of a mob. To have the plugin advance to the next note even though EQII did not report the death of the previous mob, right-click the zone name and enable `Relax Kill Check`. This will cause the plugin to advance anytime the mob shows up in the combatants, so it can advance even though the mob did not die. This setting is saved for each individual zone and is disabled by default.
 
 If the mob order in the zone list is not in the order you usually kill them, 
 the list can be re-ordered by draggging and dropping the mobs into the desired order.
 
+### Alerts
+When the plugin automatically selects the next mob upon zone-in or after recognizing the death of a mob, the plugin scans the selected note for color-coded alert tags. (If the user selects the note by clicking in ACT, alert tags do not generate alerts.)
+
+The plugin can generate both audio and visual alerts. 
+
+The alerts are delalyed after the note is selected. The delays are individually set for each mob or zone in a dialog accessed by right-clicking the mob or zone name. There is a separate delay for audio and visual alerts. They both default to 5 seconds.
+
+![Alert-menu](images/alert-delay-menu.png)
+
+The plugin uses the color of the text to generate alerts. Three different colors tag audio, visual, and audio-visual alerts. The text color is set using the editor toolbar. Select the text for the alert and press the audio, visual, or audio-visual toolbar button to toggle the color of the selected text. The buttons are outlined in red in the example below. When the cursor is within an alert tag, the appropriate button is "pressed". In the example below, the cursor is in the `cold damage` alert so the visual alert button is "pressed".
+
+![Alert-buttons](images/alert-toolbar.png)
+
+If the note contains several alert tags, they all occur in the same audio alert and on separate lines in the popup alert. Audio will contain a pause between individual  alerts.
+
+For example, for the note above with visual alerts, five seconds after the note is automatically selected (i.e. you enter the zone, since that is the first mob in the zone), the plugin will show the popup
+
+![Alert](images/alert.png)
+
+The plugin recognizes alert tags using just the three predefined colors. Other text attributes like font or bold do not affect the tag.
+
+The plugin only searches the first section if there are un-accepted [replacement notes](#previous-note-replacement).
+
 ## Sharing Notes
+The `Copy to XML` menus allow sharing notes in ACT with other users of the plugin. The `Export to RTF` menu allows exporting the notes out of ACT to a WordPad file.
+
 Right-click the zone name in the tree to share a zone note. Right-click a mob name in the tree to share a mob note.
+
+Right-click the zone name and choose `Copy Entire Zone to XML` to add the zone note and all the underlying mob notes to the dialog's share list. The received notes may get scrambled if the player(s) receiving multiple notes from this command are not running plugin version 1.3 or if the sending player is not whitelisted. If one or the other of those is not true, the best chance of success is for the receiver to accept the data from ACT's *Options, Configuration Import/Export, XML Share Snippets* yellow window in the order in the window from top to bottom.
 
 The notes are stored as Rich Text Format (RTF). This format provides the capability to change the font, color, bullets, etc, but does add overhead.
 
-The `Copy to XML` menu allows sharing notes in ACT with other users of the plugin. The `Export to RTF` menu allows exporting the notes out of ACT to a WordPad file.
+Wordpad and Microsoft Word can also handle RTF files. To create an RTF file from ACT Notes, right-click a zone or mob name in the category panel and choose `Export to RTF...`. Right-clicking the zone name will export the zone notes and all child mob notes to the file. Right-clicking a mob will export only that mob's notes.
 
 ### Share Channel
 For the first XML share in a zone, the plugin guesses whether you are likely in a group or raid from the selected zone name
@@ -134,16 +166,14 @@ This process is illustrated below for a note with compressed images.
 The receiver of the note needs to accept each section. A single macro can contain up to 16 sections.
 
 If lots of sections arrive faster than the receiver can click the ACT `Add Now` button for XML shares,
-they can still accept them on ACT's `Options` tab, `Configuration Import/Export` heading,
+they can still be accepted on ACT's `Options` tab, `Configuration Import/Export` heading,
 `XML Share Snippets` section. Select each one listed in the yellow box and press the **[Import Above Data]** under the white box. **Note:** the `Add Now` button can be bypassed for trusted players by adding them to the `Automatically accept data from` in the green list.
-
-When using macros, all sections from each macro should be accepted before another macro is shared to avoid mixing sections between macros. For example, make sure all sections from `note-macro1.txt` have been accepted before sharing `note-macro2.txt`
 
 ### Previous Note Replacement
 If the receiving player does not have an existing note for the incoming zone or mob, 
 the plugin creates the appropriate entities.
 
-The plugin provides several options for receiving shared notes when the receiving player already has a note for that zone or mob.
+The plugin provides several options at the bottom of the edit pane for receiving shared notes when the receiving player already has a note for that zone or mob.
 
 ![append](images/incoming.png)
 

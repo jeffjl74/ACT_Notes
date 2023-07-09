@@ -1,6 +1,7 @@
 using Advanced_Combat_Tracker;
 using System;
 using System.Drawing;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 
@@ -22,8 +23,12 @@ namespace ACT_Notes
         public event EventHandler OnSave;
         public event EventHandler OnUserChangedText;
 
+        public static Color audioAlertColor = Color.BlueViolet;
+        public static Color visualAlertColor = Color.MediumOrchid;
+        public static Color audioVisualAlertColor = Color.MediumVioletRed;
+
         #endregion Declarations
-        
+
 
         #region Toolbar Methods
 
@@ -230,6 +235,46 @@ namespace ACT_Notes
             rtbDoc.SelectionBackColor = toolDropDownButtonBackground.Value;
         }
 
+        private void tbrSpeaker_Click(object sender, EventArgs e)
+        {
+
+            if(rtbDoc.SelectionColor == audioAlertColor)
+            {
+                rtbDoc.SelectionColor = Color.Black;
+            }
+            else // add
+            {
+                rtbDoc.SelectionColor = audioAlertColor;
+            }
+            rtbDoc_SelectionChanged(null, null);
+        }
+
+        private void tbrPopup_Click(object sender, EventArgs e)
+        {
+            if (rtbDoc.SelectionColor == visualAlertColor)
+            {
+                rtbDoc.SelectionColor = Color.Black;
+            }
+            else
+            {
+                rtbDoc.SelectionColor = visualAlertColor;
+            }
+            rtbDoc_SelectionChanged(null, null);
+        }
+
+        private void tbrAudioVisual_Click(object sender, EventArgs e)
+        {
+            if (rtbDoc.SelectionColor == audioVisualAlertColor)
+            {
+                rtbDoc.SelectionColor = Color.Black;
+            }
+            else
+            {
+                rtbDoc.SelectionColor = audioVisualAlertColor;
+            }
+            rtbDoc_SelectionChanged(null, null);
+        }
+
         #endregion Toolbar Methods
 
 
@@ -304,6 +349,9 @@ namespace ACT_Notes
                 colorStripDropDownFontColor.Value = rtbDoc.SelectionColor;
             }
             tbrBullets.Checked = rtbDoc.SelectionBullet;
+            tbrSpeaker.Checked = rtbDoc.SelectionColor == audioAlertColor;
+            tbrPopup.Checked = rtbDoc.SelectionColor == visualAlertColor;
+            tbrAudioVisual.Checked = rtbDoc.SelectionColor == audioVisualAlertColor;
         }
 
         #endregion Document

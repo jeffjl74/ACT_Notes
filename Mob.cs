@@ -13,6 +13,10 @@ namespace ACT_Notes
         public string MobName { get; set; }
         [XmlAttribute]
         public int KillOrder { get; set; }
+        [XmlAttribute]
+        public int AudioDelay { get; set; } = 5;
+        [XmlAttribute]
+        public int VisualDelay { get; set; } = 5;
         public string Notes { get; set; }
 
         public int CompareTo(Mob other)

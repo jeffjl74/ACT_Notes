@@ -64,6 +64,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AlertForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AlertForm.Designer.cs">
+      <DependentUpon>AlertForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="ColorDialogEx.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -77,6 +83,12 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="CompressCheckChangedEventArgs.cs" />
+    <Compile Include="DelaysForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="DelaysForm.Designer.cs">
+      <DependentUpon>DelaysForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Diff.cs" />
     <Compile Include="Differences.cs">
       <SubType>Form</SubType>
@@ -139,6 +151,12 @@
     <Compile Include="ZoneList.cs" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="AlertForm.resx">
+      <DependentUpon>AlertForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="DelaysForm.resx">
+      <DependentUpon>DelaysForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Differences.resx">
       <DependentUpon>Differences.cs</DependentUpon>
     </EmbeddedResource>

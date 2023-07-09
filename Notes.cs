@@ -11,17 +11,23 @@ using System.Linq;
 using System.Threading;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
+using System.Text;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Security.Policy;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyVersion("1.3.0.0")]
 
 namespace ACT_Notes
 {
     public partial class Notes : UserControl, IActPluginV1
 	{
         const string helpUlr = "https://github.com/jeffjl74/ACT_Notes#act-notes-plugin";
+        
+        readonly bool debugMode = false;  //set to test using imports, mouse selection alerts, and the game not running
 
         // the data
         ZoneList zoneList = new ZoneList();
@@ -30,8 +36,21 @@ namespace ACT_Notes
         // zone change support
         System.Timers.Timer zoneTimer = new System.Timers.Timer();
         string currentZone = string.Empty;
+        string cleanZone = string.Empty;
         //tree enemies for the selected zone
         List<string> enemies = new List<string>();
+        bool relaxedKillCheck = false;
+        Regex reCleanActZone = new Regex(@"(?:\\#[0-9A-F]{6})?(?<zone>[^.0-9]+)", RegexOptions.Compiled);
+
+        // mob name change support
+        Regex rePain = new Regex(@"] Alas, (?<mob>.*) has died from pain and suffering", RegexOptions.Compiled);
+        Regex reVerdict = new Regex(@"] (?<mob>.*) has been judged by Verdict", RegexOptions.Compiled);
+        const int logLineBracketIndex = 37;
+
+        // alerts
+        AlertForm alertForm;
+        bool doNotAnnounce = true;  //user selection of a note does not trigger an audio announcement
+        bool importing = false;
 
         WindowsFormsSynchronizationContext mUiContext = new WindowsFormsSynchronizationContext();
         
@@ -65,12 +84,21 @@ namespace ACT_Notes
         string[] xmlSections;
         bool[] packetTrack;
         bool compressedXml = false;
+        internal class xmlQclass 
+        {
+            public Zone zone;
+            public string data;
+            public string player;
+            public bool compressed;
+        }
+        ConcurrentQueue<xmlQclass> xmlIncoming = new ConcurrentQueue<xmlQclass>();
 
         ImageList treeImages = new ImageList();     //tree folder images
 
         // context menu support
         TreeNode clickedZoneNode = null;
         Point clickedZonePoint;
+        bool firstExport = true;
 
         bool neverBeenVisible = true;               //save the splitter location only if it has been initialized 
 
@@ -142,19 +170,69 @@ namespace ACT_Notes
 
         private void OFormActMain_OnCombatEnd(bool isImport, CombatToggleEventArgs encounterInfo)
         {
-            if (enemies.Count > 0)
+            importing = isImport;
+            if (isImport && debugMode)
             {
+                if (currentZone != ActGlobals.oFormActMain.CurrentZone)
+                    ZoneTimer_Elapsed(null, null); //for debug while importing since we can outrun the timer
+            }
+
+            if (enemies.Count > 0 && (!isImport || debugMode))
+            {
+                int sucessLevel = encounterInfo.encounter.GetEncounterSuccessLevel();
                 // if we won, see if the mob is in our list so we can move to the next note
-                if (encounterInfo.encounter.GetEncounterSuccessLevel() == 1)
+                bool found = false;
+                if (sucessLevel == 1)
                 {
+                    // what we're looking for should be the strongest
+                    string strongest = encounterInfo.encounter.GetStrongestEnemy(ActGlobals.charName);
+                    if (enemies.Contains(strongest.ToLower()))
+                    {
+                        mUiContext.Post(KillProc, strongest);
+                        Debug.WriteLineIf(debugMode, $"**CombatEnd(strongest): Post next name after {strongest}");
+                        found = true;
+                    }
+                    if(!found)
+                    {
+                        // no match on the strongest, just look at every combatant
+                        foreach (CombatantData d in encounterInfo.encounter.Items.Values)
+                        {
+                            if (enemies.Contains(d.Name.ToLower()))
+                            {
+                                mUiContext.Post(KillProc, d.Name);
+                                Debug.WriteLineIf(debugMode, $"**CombatEnd(success): Post next name after {d.Name}");
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!found)
+                        Debug.WriteLineIf(debugMode, $"CombatEnd(success): no matching enemy");
+                }
+                if (!found && sucessLevel == 2 && !relaxedKillCheck)
+                {
+                    //look for other indicators of enemy death that ACT did not recognize
+                    //(search on the UI thread instead of blocking the log parsing thread)
+                    mUiContext.Post(SearchForDeath, encounterInfo);
+                    Debug.WriteLineIf(debugMode, "**CombatEnd(partial): Search for clues");
+                }
+                if (!found && sucessLevel == 2 && relaxedKillCheck)
+                {
+                    // partial success (something died)
+                    // EQII logs can be vague about whether the mob died
+                    // this check can advance to the next note if the fight either succeeded or failed
                     foreach (CombatantData d in encounterInfo.encounter.Items.Values)
                     {
                         if (enemies.Contains(d.Name.ToLower()))
                         {
                             mUiContext.Post(KillProc, d.Name);
+                            Debug.WriteLineIf(debugMode, $"**CombatEnd(relaxed) Post next name after {d.Name}");
+                            found = true;
                             break;
                         }
                     }
+                    if (!found)
+                        Debug.WriteLineIf(debugMode, $"CombatEnd(relaxed): no matching enemy");
                 }
             }
         }
@@ -164,13 +242,43 @@ namespace ACT_Notes
             //look for zone change
             if (currentZone != ActGlobals.oFormActMain.CurrentZone)
             {
-                currentZone = ActGlobals.oFormActMain.CurrentZone;
+                currentZone = cleanZone = ActGlobals.oFormActMain.CurrentZone;
+                Match match = reCleanActZone.Match(currentZone);
+                if (match.Success)
+                    cleanZone = match.Groups["zone"].Value.Trim();
+                Zone zone = zoneList[currentZone];
+                if(zone == null)
+                    zone = zoneList[cleanZone];
+                if (zone != null)
+                    relaxedKillCheck = zone.RelaxedKillCheck;
+                else
+                    relaxedKillCheck = false;
+
                 TreeNode node = BuildEnemyList();
                 if (node != null)
                 {
+                    doNotAnnounce = false;
                     treeViewZones.SelectedNode = node;
-                    treeViewZones.SelectedNode.EnsureVisible();
+                    try
+                    {
+                        // have seen this still be null while importing/debug, so try to avoid an exception
+                        if (treeViewZones.SelectedNode != null)
+                            treeViewZones.SelectedNode.EnsureVisible();
+                    }
+                    catch
+                    {
+                        // race condition while importing. just ignore it. only impact is EnsureVisible() failed.
+                    }
+                    doNotAnnounce = true;
                 }
+            }
+
+            // hide the alert?
+            bool eqrunning = Process.GetProcessesByName("EverQuest2").Length > 0 ? true : false;
+            if (alertForm != null && !eqrunning && !debugMode)
+            {
+                alertForm.Close();
+                alertForm = null;
             }
         }
 
@@ -178,7 +286,7 @@ namespace ACT_Notes
         {
             enemies.Clear();
             TreeNode result = null;
-            TreeNode[] nodes = treeViewZones.Nodes.Find(currentZone, false);
+            TreeNode[] nodes = treeViewZones.Nodes.Find(cleanZone, false);
             if (nodes.Length > 0)
             {
                 TreeNode zoneNode = nodes[0];
@@ -199,8 +307,37 @@ namespace ACT_Notes
                         }
                     }
                 }
-                if (mobNode == null || zone.Notes != null)
+                if (mobNode == null)
                     result = zoneNode;
+                else if (zone.Notes != null)
+                {
+                    // look for alert tags in the zone note
+                    bool hasAlert = false;
+                    using (RichTextBox rtb = new RichTextBox())
+                    {
+                        rtb.Rtf = zone.Notes;
+                        string text = rtb.Text;
+                        int stopAt = text.IndexOf(pastePrefix);
+                        if (stopAt == -1)
+                            stopAt = text.Length;
+                        for (int i = 0; i < stopAt; i++)
+                        {
+                            rtb.Select(i, 1);
+                            if (rtb.SelectionColor == EditCtrl.audioAlertColor
+                                || rtb.SelectionColor == EditCtrl.visualAlertColor
+                                || rtb.SelectionColor == EditCtrl.audioVisualAlertColor)
+                            {
+                                hasAlert = true;
+                                break;
+                            }
+                        }
+                    }
+                    // show the zone note if it has alerts
+                    if (hasAlert)
+                        result = zoneNode;
+                    else // otherwise, show the mob node
+                        result = mobNode;
+                }
                 else
                     result = mobNode;
             }
@@ -290,7 +427,13 @@ namespace ACT_Notes
 
                             // done if we have all the sections
                             if (!packetTrack.Contains(false))
+                            {
+                                string data_enc = string.Join("", xmlSections);
+                                xmlQclass qd = new xmlQclass { zone = xmlZone, data = data_enc, player = xmlSendingPlayer, compressed = compressedXml };
+                                xmlIncoming.Enqueue(qd);
+                                xmlZone = null;
                                 mUiContext.Post(XmlPasteProc, null);
+                            }
                         }
                         else
                         {
@@ -315,7 +458,13 @@ namespace ACT_Notes
 
                                 // process the note if we have all the sections
                                 if (!packetTrack.Contains(false))
+                                {
+                                    string data_enc = string.Join("", xmlSections);
+                                    xmlQclass qd = new xmlQclass { zone = xmlZone, data = data_enc, player = xmlSendingPlayer, compressed = compressedXml };
+                                    xmlIncoming.Enqueue(qd);
+                                    xmlZone = null;
                                     mUiContext.Post(XmlPasteProc, null);
+                                }
                             }
                         } // was a continuation section
                     } // found both section numbers
@@ -328,182 +477,214 @@ namespace ACT_Notes
         // on the UI thread
         private void XmlPasteProc(object o)
         {
-            string data_enc = string.Join("", xmlSections);
-            // incoming data has substitutions to work around EQII and ACT expectations
-            string data = XmlCopyForm.DecodeShare(data_enc);
-            if (compressedXml)
-                data = XmlCopyForm.DecompressShare(data);
-            // test for a good rtf
-            try
+            xmlQclass incoming;
+            while (xmlIncoming.TryDequeue(out incoming))
             {
-                RichTextBox rtb = new RichTextBox();
-                rtb.Rtf = data;
-            }
-            catch (Exception tx)
-            {
-                SimpleMessageBox.Show(this, "Illegal note format: " + tx.Message, "Note Share Error");
-                return;
-            }
-
-            Zone zone = zoneList.Zones.Find(z => z.ZoneName == xmlZone.ZoneName);
-            if (zone == null)
-            {
-                // new zone/mob
-                if (xmlZone.Mobs.Count == 0)
+                Zone incZone = incoming.zone;
+                // incoming data has substitutions to work around EQII and ACT expectations
+                string data = XmlCopyForm.DecodeShare(incoming.data);
+                if (incoming.compressed)
+                    data = XmlCopyForm.DecompressShare(data);
+                // test for a good rtf
+                try
                 {
-                    // no mob, just zone notes
-                    xmlZone.Notes = data;
+                    RichTextBox rtb = new RichTextBox();
+                    rtb.Rtf = data;
                 }
-                else
+                catch (Exception tx)
                 {
-                    xmlZone.Mobs[0].Notes = data;
-                    xmlZone.Mobs[0].KillOrder = 0;
+                    SimpleMessageBox.Show(ActGlobals.oFormActMain, "Illegal note format: " + tx.Message, "Note Share Error");
+                    return;
                 }
 
-                zoneList.Zones.Add(xmlZone);
-                TreeNode zn = treeViewZones.Nodes.Add(xmlZone.ZoneName);
-                zn.Tag = xmlZone;
-                zn.Name = xmlZone.ZoneName;
-                if (xmlZone.Mobs.Count > 0)
+                Zone zone = zoneList.Zones.Find(z => z.ZoneName == incZone.ZoneName);
+                if (zone == null)
                 {
-                    TreeNode mn = zn.Nodes.Add(xmlZone.Mobs[0].MobName);
-                    mn.Tag = xmlZone.Mobs[0];
-                    mn.Name = xmlZone.Mobs[0].MobName;
-                    mn.EnsureVisible();
-                    treeViewZones.SelectedNode = mn;
-                }
-                else
-                {
-                    zn.EnsureVisible();
-                    treeViewZones.SelectedNode = zn;
-                }
-            }
-            else
-            {
-                // existing zone
-                GetWhiteList();
-
-                Zone.PasteType mergeOp = zone.Paste;
-
-                if (xmlZone.Mobs.Count > 0)
-                {
-                    // existing mob note?
-                    Mob mob = zone.Mobs.Find(m => m.MobName == xmlZone.Mobs[0].MobName);
-                    if (mob != null)
+                    // new zone/mob
+                    if (incZone.Mobs.Count == 0)
                     {
-                        //
-                        // existing zone, existing mob
-                        //
-                        TreeNode destMobNode = null;
-                        TreeNode[] zoneNodes = treeViewZones.Nodes.Find(xmlZone.ZoneName, false);
-                        if (zoneNodes.Length > 0)
+                        // no mob, just zone notes
+                        incZone.Notes = data;
+                    }
+                    else
+                    {
+                        incZone.Mobs[0].Notes = data;
+                        incZone.Mobs[0].KillOrder = 0;
+                    }
+
+                    zoneList.Zones.Add(incZone);
+                    TreeNode zn = treeViewZones.Nodes.Add(incZone.ZoneName);
+                    zn.Tag = incZone;
+                    zn.Name = incZone.ZoneName;
+                    if (incZone.Mobs.Count > 0)
+                    {
+                        TreeNode mn = zn.Nodes.Add(incZone.Mobs[0].MobName);
+                        mn.Tag = incZone.Mobs[0];
+                        mn.Name = incZone.Mobs[0].MobName;
+                        mn.EnsureVisible();
+                        treeViewZones.SelectedNode = mn;
+                    }
+                    else
+                    {
+                        zn.EnsureVisible();
+                        treeViewZones.SelectedNode = zn;
+                    }
+                }
+                else
+                {
+                    // existing zone
+                    GetWhiteList();
+
+                    Zone.PasteType mergeOp = zone.Paste;
+
+                    if (incZone.Mobs.Count > 0)
+                    {
+                        // existing mob note?
+                        Mob mob = zone.Mobs.Find(m => m.MobName == incZone.Mobs[0].MobName);
+                        if (mob != null)
                         {
-                            TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(mob.MobName, false);
-                            if (mobNodes.Length > 0)
+                            //
+                            // existing zone, existing mob
+                            //
+                            TreeNode destMobNode = null;
+                            TreeNode[] zoneNodes = treeViewZones.Nodes.Find(incZone.ZoneName, false);
+                            if (zoneNodes.Length > 0)
                             {
-                                destMobNode = mobNodes[0];
-                                if (treeViewZones.SelectedNode == destMobNode && richEditCtrl1.rtbDoc.Modified)
-                                    SaveNote(destMobNode, false);
+                                TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(mob.MobName, false);
+                                if (mobNodes.Length > 0)
+                                {
+                                    destMobNode = mobNodes[0];
+                                    if (treeViewZones.SelectedNode == destMobNode && richEditCtrl1.rtbDoc.Modified)
+                                        SaveNote(destMobNode, false);
+                                }
+                            }
+
+                            if (mergeOp == Zone.PasteType.Ask)
+                                mergeOp = AskPasteType(mob.MobName);
+                            if (mergeOp == Zone.PasteType.Ignore)
+                                return;
+                            if (mergeOp == Zone.PasteType.Replace ||
+                               (mergeOp == Zone.PasteType.Accept && whitelist.Contains(xmlSendingPlayer)))
+                            {
+                                mob.Notes = data;
+                            }
+                            else // Append
+                            {
+                                // use a RichTextBox to merge RTF docs
+                                RichTextBox rtb = new RichTextBox();
+                                rtb.Rtf = mob.Notes;
+
+                                // delimiter between the original and the incoming
+                                AppendDelimiter(rtb, incoming.player);
+
+                                rtb.Select(rtb.TextLength, 0);
+                                rtb.SelectedRtf = data;
+                                mob.Notes = rtb.Rtf;
+                            }
+
+                            if (destMobNode != null)
+                            {
+                                if (treeViewZones.SelectedNode == destMobNode)
+                                    treeViewZones.SelectedNode = null; //force an update
+                                destMobNode.EnsureVisible();
+                                treeViewZones.SelectedNode = destMobNode;
                             }
                         }
-
-                        if (mergeOp == Zone.PasteType.Ask)
-                            mergeOp = AskPasteType(mob.MobName);
-                        if (mergeOp == Zone.PasteType.Ignore)
-                            return;
-                        if (mergeOp == Zone.PasteType.Replace ||
-                           (mergeOp == Zone.PasteType.Accept && whitelist.Contains(xmlSendingPlayer)))
+                        else
                         {
-                            mob.Notes = data;
-                        }
-                        else // Append
-                        {
-                            // use a RichTextBox to merge RTF docs
-                            RichTextBox rtb = new RichTextBox();
-                            rtb.Rtf = mob.Notes;
-
-                            // delimiter between the original and the incoming
-                            AppendDelimiter(rtb);
-
-                            rtb.Select(rtb.TextLength, 0);
-                            rtb.SelectedRtf = data;
-                            mob.Notes = rtb.Rtf;
-                        }
-
-                        if(destMobNode != null)
-                        {
-                            if (treeViewZones.SelectedNode == destMobNode)
-                                treeViewZones.SelectedNode = null; //force an update
-                            destMobNode.EnsureVisible();
-                            treeViewZones.SelectedNode = destMobNode;
+                            //
+                            // new mob in existing zone
+                            //
+                            incZone.Mobs[0].Notes = data;
+                            incZone.Mobs[0].KillOrder = zone.Mobs.Count;
+                            zone.Mobs.Add(incZone.Mobs[0]);
+                            TreeNode[] nodes = treeViewZones.Nodes.Find(incZone.ZoneName, false);
+                            if (nodes.Length > 0)
+                            {
+                                TreeNode mn = nodes[0].Nodes.Add(incZone.Mobs[0].MobName);
+                                mn.Tag = incZone.Mobs[0];
+                                mn.Name = incZone.Mobs[0].MobName;
+                                mn.EnsureVisible();
+                                treeViewZones.SelectedNode = mn;
+                            }
                         }
                     }
                     else
                     {
                         //
-                        // new mob in existing zone
+                        // zone note for existing zone
                         //
-                        xmlZone.Mobs[0].Notes = data;
-                        xmlZone.Mobs[0].KillOrder = zone.Mobs.Count;
-                        zone.Mobs.Add(xmlZone.Mobs[0]);
-                        TreeNode[] nodes = treeViewZones.Nodes.Find(xmlZone.ZoneName, false);
+                        TreeNode destZoneNode = null;
+                        TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, false);
                         if (nodes.Length > 0)
                         {
-                            TreeNode mn = nodes[0].Nodes.Add(xmlZone.Mobs[0].MobName);
-                            mn.Tag = xmlZone.Mobs[0];
-                            mn.Name = xmlZone.Mobs[0].MobName;
-                            mn.EnsureVisible();
-                            treeViewZones.SelectedNode = mn;
+                            destZoneNode = nodes[0];
+                            if (treeViewZones.SelectedNode == destZoneNode && richEditCtrl1.rtbDoc.Modified)
+                                SaveNote(destZoneNode, false);
+                        }
+
+                        if (mergeOp == Zone.PasteType.Ask)
+                            mergeOp = AskPasteType(zone.ZoneName);
+                        if (mergeOp == Zone.PasteType.Ignore)
+                            return;
+                        if (mergeOp == Zone.PasteType.Replace ||
+                           (mergeOp == Zone.PasteType.Accept && whitelist.Contains(xmlSendingPlayer)))
+                        {
+                            zone.Notes = data;
+                        }
+                        else // append
+                        {
+                            // use a RichTextBox to merge RTF docs
+                            RichTextBox rtb = new RichTextBox();
+                            rtb.Rtf = zone.Notes;
+
+                            // delimiter
+                            AppendDelimiter(rtb, incoming.player);
+
+                            rtb.Select(rtb.TextLength, 0);
+                            rtb.SelectedRtf = data;
+                            zone.Notes = rtb.Rtf;
+                        }
+
+                        if (destZoneNode != null)
+                        {
+                            if (treeViewZones.SelectedNode == destZoneNode)
+                                treeViewZones.SelectedNode = null; //force an update
+                            destZoneNode.EnsureVisible();
+                            treeViewZones.SelectedNode = destZoneNode;
                         }
                     }
                 }
-                else
+            }
+        }
+
+        // on the UI thread
+        private void SearchForDeath(object o)
+        {
+            CombatToggleEventArgs encounterInfo = o as CombatToggleEventArgs;
+            if(o != null)
+            {
+                Match match = null;
+                // since death should be near the end, search backwards through the last ~100 log lines
+                int endCount = encounterInfo.encounter.LogLines.Count > 100 ? encounterInfo.encounter.LogLines.Count-100 : 0;
+                for (int i = encounterInfo.encounter.LogLines.Count - 1; i >= endCount; i--)
                 {
-                    //
-                    // zone note for existing zone
-                    //
-                    TreeNode destZoneNode = null;
-                    TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, false);
-                    if (nodes.Length > 0)
+                    LogLineEntry logLine = encounterInfo.encounter.LogLines[i];
+                    match = rePain.Match(logLine.LogLine, logLineBracketIndex);
+                    if (!match.Success)
+                        match = reVerdict.Match(logLine.LogLine, logLineBracketIndex);
+                    if (match.Success)
                     {
-                        destZoneNode = nodes[0];
-                        if (treeViewZones.SelectedNode == destZoneNode && richEditCtrl1.rtbDoc.Modified)
-                            SaveNote(destZoneNode, false);
-                    }
-
-                    if (mergeOp == Zone.PasteType.Ask)
-                        mergeOp = AskPasteType(zone.ZoneName);
-                    if (mergeOp == Zone.PasteType.Ignore)
-                        return;
-                    if (mergeOp == Zone.PasteType.Replace ||
-                       (mergeOp == Zone.PasteType.Accept && whitelist.Contains(xmlSendingPlayer)))
-                    {
-                        zone.Notes = data;
-                    }
-                    else // append
-                    {
-                        // use a RichTextBox to merge RTF docs
-                        RichTextBox rtb = new RichTextBox();
-                        rtb.Rtf = zone.Notes;
-
-                        // delimiter
-                        AppendDelimiter(rtb);
-
-                        rtb.Select(rtb.TextLength, 0);
-                        rtb.SelectedRtf = data;
-                        zone.Notes = rtb.Rtf;
-                    }
-
-                    if(destZoneNode != null)
-                    {
-                        if (treeViewZones.SelectedNode == destZoneNode)
-                            treeViewZones.SelectedNode = null; //force an update
-                        destZoneNode.EnsureVisible();
-                        treeViewZones.SelectedNode = destZoneNode;
+                        string mob = match.Groups["mob"].Value;
+                        if (enemies.Contains(mob.ToLower()))
+                        {
+                            mUiContext.Post(KillProc, mob);
+                            Debug.WriteLineIf(debugMode, $"**SearchForDeath Post next name after {mob}");
+                            break;
+                        }
                     }
                 }
             }
-            xmlZone = null;
         }
 
         private Zone.PasteType AskPasteType(string what)
@@ -525,12 +706,12 @@ namespace ACT_Notes
             return ret;
         }
 
-        private void AppendDelimiter(RichTextBox rtb)
+        private void AppendDelimiter(RichTextBox rtb, string player)
         {
             rtb.Select(rtb.TextLength, 0);
             string who = string.Empty;
-            if(!string.IsNullOrEmpty(xmlSendingPlayer))
-                who = $" from {xmlSendingPlayer}";
+            if(!string.IsNullOrEmpty(player))
+                who = $" from {player}";
             string stats = $"{pastePrefix}{who} {DateTime.Now.ToShortDateString()} {DateTime.Now.ToShortTimeString()}";
             rtb.SelectedRtf = @"{\rtf1\ansi\par\pard\b " + stats + @" ------------\b0\par}";
         }
@@ -836,6 +1017,9 @@ namespace ACT_Notes
                     string fight = actNode.Text;
                     int dash = fight.IndexOf(" - ");
                     name = fight.Substring(0, dash);
+                    Match match = reCleanActZone.Match(name);
+                    if (match.Success)
+                        name = match.Groups["zone"].Value.Trim();
                     autoNodeName = name; //if the user just accepts this, this is how .AfterLabledit() figures it out
                 }
             }
@@ -939,6 +1123,9 @@ namespace ACT_Notes
                 richEditCtrl1.rtbDoc.Clear();
 
                 Zone zone = null;
+                Mob mob = null;
+                int audioDelay = 5;
+                int visualDelay = 5;
                 TreeNode sel = treeViewZones.SelectedNode;
                 if (sel != null)
                 {
@@ -952,6 +1139,8 @@ namespace ACT_Notes
                                 richEditCtrl1.rtbDoc.Rtf = zone.Notes;
                                 richEditCtrl1.rtbDoc.Modified = false;
                             }
+                            audioDelay = zone.AudioDelay;
+                            visualDelay = zone.VisualDelay;
                         }
                     }
                     else if (sel.Level == 1)
@@ -960,7 +1149,7 @@ namespace ACT_Notes
                         zone = parent.Tag as Zone;
                         if (zone != null)
                         {
-                            Mob mob = sel.Tag as Mob;
+                            mob = sel.Tag as Mob;
                             if (mob != null)
                             {
                                 if (!string.IsNullOrEmpty(mob.Notes))
@@ -968,6 +1157,8 @@ namespace ACT_Notes
                                     richEditCtrl1.rtbDoc.Rtf = mob.Notes;
                                     richEditCtrl1.rtbDoc.Modified = false;
                                 }
+                                audioDelay = mob.AudioDelay;
+                                visualDelay = mob.VisualDelay;
                             }
                         }
                     }
@@ -993,20 +1184,176 @@ namespace ACT_Notes
 
                     // do we have a paste section?
                     bool hasPaste = false;
-                    string[] lines = richEditCtrl1.rtbDoc.Text.Split('\n');
-                    foreach(string line in lines)
+                    string text = richEditCtrl1.rtbDoc.Text;
+                    int stopAt = text.IndexOf(pastePrefix);
+                    if (stopAt == -1)
+                        stopAt = text.Length;
+                    else
                     {
-                        if (line.StartsWith(pastePrefix))
+                        hasPaste = true;
+                        buttonCompare.Enabled = true;
+                    }
+
+                    if (!doNotAnnounce || debugMode)
+                    {
+                        // search for alert tags
+                        string header = mob != null ? mob.MobName : (zone != null ? zone.ZoneName : "");
+                        StringBuilder audioAlerts = new StringBuilder();
+                        List<string> popAlerts = new List<string>();
+                        // use a separate RTB to hide the color search process from view
+                        using (RichTextBox rtb = new RichTextBox())
                         {
-                            hasPaste = true;
-                            buttonCompare.Enabled = true;
-                            break;
+                            rtb.Rtf = richEditCtrl1.rtbDoc.Rtf;
+                            int audioStart = -1;
+                            int audioLen = 0;
+                            int visualStart = -1;
+                            int visualLen = 0;
+                            for (int i = 0; i < stopAt; i++)
+                            {
+                                rtb.Select(i, 1);
+
+                                if (rtb.SelectionColor == EditCtrl.audioAlertColor
+                                    || rtb.SelectionColor == EditCtrl.audioVisualAlertColor)
+                                {
+                                    if (audioStart < 0)
+                                    {
+                                        audioStart = i;
+                                        audioLen = 1;
+                                    }
+                                    else
+                                        audioLen++;
+                                }
+                                else if (audioLen > 0)
+                                {
+                                    // alert color has ended
+                                    rtb.Select(audioStart, audioLen);
+                                    string say = rtb.SelectedText.Trim();
+                                    if (!string.IsNullOrEmpty(say))
+                                    {
+                                        if (audioAlerts.Length == 0)
+                                        {
+                                            if (!string.IsNullOrEmpty(header))
+                                                audioAlerts.Append(header + ", ");
+                                        }
+                                        else
+                                            audioAlerts.Append(", ");
+                                        audioAlerts.Append(say);
+                                    }
+                                    audioLen = 0;
+                                    audioStart = -1;
+                                }
+
+                                if (rtb.SelectionColor == EditCtrl.visualAlertColor
+                                    || rtb.SelectionColor == EditCtrl.audioVisualAlertColor)
+                                {
+                                    if (visualStart < 0)
+                                    {
+                                        visualStart = i;
+                                        visualLen = 1;
+                                    }
+                                    else
+                                        visualLen++;
+                                }
+                                else if (visualLen > 0)
+                                {
+                                    // we have reached the end of the alert color
+                                    rtb.Select(visualStart, visualLen);
+                                    string say = rtb.SelectedText.Trim();
+                                    if (!string.IsNullOrEmpty(say))
+                                    {
+                                        if (popAlerts.Count == 0)
+                                        {
+                                            if (!string.IsNullOrEmpty(header))
+                                                popAlerts.Add(header);
+                                        }
+                                        popAlerts.Add(say);
+                                    }
+                                    visualLen = 0;
+                                    visualStart = -1;
+                                }
+                            }
+                        }
+
+                        if (audioAlerts.Length > 0)
+                        {
+                            Task.Run(() =>
+                            {
+                                if (audioDelay > 0)
+                                    Thread.Sleep(audioDelay * 1000);
+                                mUiContext.Post(UiAudio, audioAlerts.ToString());
+                            });
+                        }
+                        if (popAlerts.Count > 0)
+                        {
+                            Task.Run(() =>
+                            {
+                                if (visualDelay > 0)
+                                    Thread.Sleep(visualDelay * 1000);
+                                mUiContext.Post(UiPopup, popAlerts);
+                            });
+                        }
+                        else
+                        {
+                            if (alertForm != null)
+                            {
+                                alertForm.Close();
+                                alertForm = null;
+                            }
                         }
                     }
-                    if(!hasPaste)
+                    if(doNotAnnounce && alertForm != null)
+                    {
+                        alertForm.Close();
+                        alertForm = null;
+                    }
+
+                    if (!hasPaste)
                         buttonCompare.Enabled = false;
                 }
             }
+        }
+
+        void UiAudio(object o)
+        {
+            string say = o as string;
+            if(!string.IsNullOrEmpty(say))
+            {
+                ActGlobals.oFormActMain.TTS(say);
+            }
+        }
+
+        void UiPopup(object o)
+        {
+            List<string> popAlerts = o as List<string>;
+            if(popAlerts != null)
+            {
+                if (alertForm != null)
+                {
+                    alertForm.Close();
+                    alertForm = null;
+                }
+                alertForm = new AlertForm();
+                alertForm.Alerts = popAlerts;
+                if (zoneList.AlertX == 0 && zoneList.AlertY == 0)
+                {
+                    // if it has never been positioned, put it center screen
+                    Size size = Screen.PrimaryScreen.WorkingArea.Size;
+                    zoneList.AlertX = size.Width / 2 - alertForm.Width / 2;
+                    zoneList.AlertY = size.Height / 2 - alertForm.Height / 2;
+                }
+                if (zoneList.AlertWidth != 0)
+                    alertForm.Width = zoneList.AlertWidth;
+                alertForm.Location = new Point(zoneList.AlertX, zoneList.AlertY);
+                alertForm.FormMoved += AlertForm_FormMoved;
+                alertForm.Show();
+            }
+        }
+
+        private void AlertForm_FormMoved(object sender, EventArgs e)
+        {
+            zoneList.AlertX = alertForm.Location.X;
+            zoneList.AlertY = alertForm.Location.Y;
+            zoneList.AlertWidth = alertForm.Width;
         }
 
         private void treeViewZones_AfterLabelEdit(object sender, NodeLabelEditEventArgs e)
@@ -1213,7 +1560,7 @@ namespace ACT_Notes
             if (!string.IsNullOrEmpty(nameKilled))
             {
                 // see if we have anything for the current zone
-                TreeNode[] zoneNodes = treeViewZones.Nodes.Find(ActGlobals.oFormActMain.CurrentZone, false);
+                TreeNode[] zoneNodes = treeViewZones.Nodes.Find(cleanZone, false);
                 if (zoneNodes.Length > 0)
                 {
                     Zone zone = zoneNodes[0].Tag as Zone;
@@ -1242,8 +1589,10 @@ namespace ACT_Notes
                                 if (mobNodes.Length > 0)
                                 {
                                     // select the next mob in the kill order
+                                    doNotAnnounce = false;
                                     treeViewZones.SelectedNode = mobNodes[0];
                                     treeViewZones.SelectedNode.EnsureVisible();
+                                    doNotAnnounce = true;
                                 }
                             }
                         }
@@ -1285,14 +1634,31 @@ namespace ACT_Notes
             if (clickedZoneNode.Parent != null)
             {
                 deleteToolStripMenuItem.Text = "Delete Mob";
+                copyEntireZoneToXMLToolStripMenuItem.Visible = false;
+                relaxKillCheckToolStripMenuItem.Visible = false;
             }
             else if (clickedZoneNode != null)
             {
                 deleteToolStripMenuItem.Text = "Delete Zone";
+                copyEntireZoneToXMLToolStripMenuItem.Visible = true;
+                relaxKillCheckToolStripMenuItem.Visible = true;
+                Zone zone = clickedZoneNode.Tag as Zone;
+                if(zone != null)
+                    relaxKillCheckToolStripMenuItem.Checked = zone.RelaxedKillCheck;
             }
         }
 
         private void copyToXMLToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            xmlShareMenuClick(false);
+        }
+
+        private void copyEntireZoneToXMLToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            xmlShareMenuClick(true);
+        }
+
+        private void xmlShareMenuClick(bool entireZone)
         {
             if (clickedZoneNode != null)
             {
@@ -1315,6 +1681,20 @@ namespace ACT_Notes
                 {
                     zone = clickedZoneNode.Tag as Zone;
                     haveNote = zone.Notes != null;
+                    if (entireZone && !haveNote)
+                    {
+                        for (int i = 0; i < zone.Mobs.Count; i++)
+                        {
+                            if(zone.Mobs[i].Notes != null)
+                            {
+                                if (zone.Mobs[i].Notes.Length > 0)
+                                {
+                                    haveNote = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (!haveNote)
@@ -1322,7 +1702,7 @@ namespace ACT_Notes
                         "Empty note", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 else
                 {
-                    XmlCopyForm form = new XmlCopyForm(zone, mob, zoneList.CompressImages);
+                    XmlCopyForm form = new XmlCopyForm(zone, mob, zoneList.CompressImages, entireZone);
                     form.CompressCheckChanged += Form_CompressCheckChanged;
                     form.Show();
                     PositionChildForm(form, clickedZonePoint);
@@ -1384,7 +1764,15 @@ namespace ACT_Notes
         {
             if (clickedZoneNode != null)
             {
-                saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                if (firstExport)
+                {
+                    saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    firstExport = false;
+                }
+                else
+                    saveFileDialog1.InitialDirectory = null; // will use "recents"
+                saveFileDialog1.FileName = clickedZoneNode.Text.Replace(":", String.Empty);
+                saveFileDialog1.RestoreDirectory = true;
                 if (saveFileDialog1.ShowDialog() == DialogResult.OK)
                 {
                     RichTextBox rtb = new RichTextBox();
@@ -1443,6 +1831,56 @@ namespace ACT_Notes
             }
         }
 
+        private void setAlertDelaysToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (clickedZoneNode != null)
+            {
+                DelaysForm delaysForm = new DelaysForm();
+                if (clickedZoneNode.Level == 0)
+                {
+                    delaysForm.Text = "Zone Note Alert Delays";
+                    Zone zone = clickedZoneNode.Tag as Zone;
+                    if(zone != null)
+                    {
+                        delaysForm.audioDelay = zone.AudioDelay;
+                        delaysForm.visualDelay = zone.VisualDelay;
+                        if(delaysForm.ShowDialog() == DialogResult.OK)
+                        {
+                            zone.AudioDelay = delaysForm.audioDelay;
+                            zone.VisualDelay = delaysForm.visualDelay;
+                        }
+                    }
+                }
+                else if (clickedZoneNode.Level == 1)
+                {
+                    delaysForm.Text = "Mob Note Alert Delays";
+                    Mob mob = clickedZoneNode.Tag as Mob;
+                    if(mob != null)
+                    {
+                        delaysForm.audioDelay = mob.AudioDelay;
+                        delaysForm.visualDelay = mob.VisualDelay;
+                        if(delaysForm.ShowDialog() == DialogResult.OK)
+                        {
+                            mob.AudioDelay = delaysForm.audioDelay;
+                            mob.VisualDelay = delaysForm.visualDelay;
+                        }
+                    }
+                }
+            }
+
+        }
+
+        private void relaxKillCheckToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Zone zone = clickedZoneNode.Tag as Zone;
+            if(zone != null)
+            {
+                bool now = !zone.RelaxedKillCheck;
+                zone.RelaxedKillCheck = now;
+                relaxKillCheckToolStripMenuItem.Checked = now;
+            }
+
+        }
 
         #endregion Tree Context Menu
 
@@ -1455,31 +1893,8 @@ namespace ACT_Notes
         {
             if (this.Visible)
             {
-                if (string.IsNullOrEmpty(currentZone))
-                {
-                    //we've never seen a zone change
-                    // let's try to use wherever ACT thinks we are
-                    currentZone = ActGlobals.oFormActMain.CurrentZone;
-                    if (!string.IsNullOrEmpty(currentZone))
-                    {
-                        TreeNode[] nodes = treeViewZones.Nodes.Find(currentZone, false);
-                        if (nodes.Length > 0)
-                        {
-                            if(nodes[0].Nodes.Count > 0)
-                            {
-                                // select the first mob
-                                treeViewZones.SelectedNode = nodes[0].Nodes[0];
-                                treeViewZones.SelectedNode.EnsureVisible();
-                            }
-                            else
-                            {
-                                // select the zone
-                                treeViewZones.SelectedNode = nodes[0];
-                                treeViewZones.SelectedNode.EnsureVisible();
-                            }
-                        }
-                    }
-                }
+                if (currentZone != ActGlobals.oFormActMain.CurrentZone)
+                    ZoneTimer_Elapsed(null, null); // unlikely to get here, but just in case
 
                 GetWhiteList(); // to show/hide the Accept radio button
 
@@ -1840,7 +2255,7 @@ namespace ACT_Notes
                             richEditCtrl1.rtbDoc.SelectionStart = range.index;
                             richEditCtrl1.rtbDoc.SelectionLength = range.length;
                             richEditCtrl1.rtbDoc.SelectionBackColor = range.color;
-                            Debug.WriteLine($"recolor {treeViewZones.SelectedNode.Text}: {range.index}, {range.length}, {range.color}");
+                            Debug.WriteLineIf(debugMode, $"recolor {treeViewZones.SelectedNode.Text}: {range.index}, {range.length}, {range.color}");
                         }
                         richEditCtrl1.rtbDoc.ResumePainting();
                     }
