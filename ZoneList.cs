@@ -17,6 +17,9 @@ namespace ACT_Notes
         public int AlertY { get; set; }
         [XmlAttribute]
         public int AlertWidth { get; set; }
+        [XmlAttribute]
+        public string Version { get; set; } = "1.3.0.0";
+
         public List<Zone> Zones { get; set; }
 
         public ZoneList()

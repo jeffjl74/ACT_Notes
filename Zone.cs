@@ -19,7 +19,8 @@ namespace ACT_Notes
         public int AudioDelay { get; set; } = 5;
         [XmlAttribute]
         public int VisualDelay { get; set; } = 5;
-        public bool RelaxedKillCheck { get; set; }
+        [XmlAttribute]
+        public bool SkipKillCheck { get; set; } = true;
         public string Notes { get; set; }
         public List<Mob> Mobs { get; set; }
 

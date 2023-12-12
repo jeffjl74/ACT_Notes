@@ -19,7 +19,7 @@ using System.Security.Policy;
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.3.0.0")]
+[assembly: AssemblyVersion("1.3.2.0")]
 
 namespace ACT_Notes
 {
@@ -32,6 +32,7 @@ namespace ACT_Notes
         // the data
         ZoneList zoneList = new ZoneList();
         XmlSerializer xmlSerializer;
+        char nameSeparator = ';';
 
         // zone change support
         System.Timers.Timer zoneTimer = new System.Timers.Timer();
@@ -39,18 +40,14 @@ namespace ACT_Notes
         string cleanZone = string.Empty;
         //tree enemies for the selected zone
         List<string> enemies = new List<string>();
-        bool relaxedKillCheck = false;
-        Regex reCleanActZone = new Regex(@"(?:\\#[0-9A-F]{6})?(?<zone>[^.0-9]+)", RegexOptions.Compiled);
-
-        // mob name change support
-        Regex rePain = new Regex(@"] Alas, (?<mob>.*) has died from pain and suffering", RegexOptions.Compiled);
-        Regex reVerdict = new Regex(@"] (?<mob>.*) has been judged by Verdict", RegexOptions.Compiled);
-        const int logLineBracketIndex = 37;
+        bool skipKillCheck = true;
+        //Regex reCleanActZone = new Regex(@"(?:\\#[0-9A-F]{6})?(?<zone>[^.0-9]+)", RegexOptions.Compiled);
+        Regex reCleanActZone = new Regex(@"(?::.+?:)?(?<decoration>\\#[0-9A-F]{6})?(?<zone>.+?)(?: \d+)?$", RegexOptions.Compiled);
 
         // alerts
         AlertForm alertForm;
         bool doNotAnnounce = true;  //user selection of a note does not trigger an audio announcement
-        bool importing = false;
+        bool seenEq2 = false;
 
         WindowsFormsSynchronizationContext mUiContext = new WindowsFormsSynchronizationContext();
         
@@ -170,7 +167,6 @@ namespace ACT_Notes
 
         private void OFormActMain_OnCombatEnd(bool isImport, CombatToggleEventArgs encounterInfo)
         {
-            importing = isImport;
             if (isImport && debugMode)
             {
                 if (currentZone != ActGlobals.oFormActMain.CurrentZone)
@@ -182,7 +178,7 @@ namespace ACT_Notes
                 int sucessLevel = encounterInfo.encounter.GetEncounterSuccessLevel();
                 // if we won, see if the mob is in our list so we can move to the next note
                 bool found = false;
-                if (sucessLevel == 1)
+                if (sucessLevel == 1 || skipKillCheck)
                 {
                     // what we're looking for should be the strongest
                     string strongest = encounterInfo.encounter.GetStrongestEnemy(ActGlobals.charName);
@@ -209,31 +205,6 @@ namespace ACT_Notes
                     if (!found)
                         Debug.WriteLineIf(debugMode, $"CombatEnd(success): no matching enemy");
                 }
-                if (!found && sucessLevel == 2 && !relaxedKillCheck)
-                {
-                    //look for other indicators of enemy death that ACT did not recognize
-                    //(search on the UI thread instead of blocking the log parsing thread)
-                    mUiContext.Post(SearchForDeath, encounterInfo);
-                    Debug.WriteLineIf(debugMode, "**CombatEnd(partial): Search for clues");
-                }
-                if (!found && sucessLevel == 2 && relaxedKillCheck)
-                {
-                    // partial success (something died)
-                    // EQII logs can be vague about whether the mob died
-                    // this check can advance to the next note if the fight either succeeded or failed
-                    foreach (CombatantData d in encounterInfo.encounter.Items.Values)
-                    {
-                        if (enemies.Contains(d.Name.ToLower()))
-                        {
-                            mUiContext.Post(KillProc, d.Name);
-                            Debug.WriteLineIf(debugMode, $"**CombatEnd(relaxed) Post next name after {d.Name}");
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found)
-                        Debug.WriteLineIf(debugMode, $"CombatEnd(relaxed): no matching enemy");
-                }
             }
         }
 
@@ -250,10 +221,9 @@ namespace ACT_Notes
                 if(zone == null)
                     zone = zoneList[cleanZone];
                 if (zone != null)
-                    relaxedKillCheck = zone.RelaxedKillCheck;
+                    skipKillCheck = zone.SkipKillCheck;
                 else
-                    relaxedKillCheck = false;
-
+                    skipKillCheck = true;
                 TreeNode node = BuildEnemyList();
                 if (node != null)
                 {
@@ -275,7 +245,9 @@ namespace ACT_Notes
 
             // hide the alert?
             bool eqrunning = Process.GetProcessesByName("EverQuest2").Length > 0 ? true : false;
-            if (alertForm != null && !eqrunning && !debugMode)
+            if(eqrunning && !seenEq2)
+                seenEq2 = true;
+            if (alertForm != null && !eqrunning && seenEq2)
             {
                 alertForm.Close();
                 alertForm = null;
@@ -299,7 +271,7 @@ namespace ACT_Notes
                     {
                         foreach (Mob m in zone.Mobs)
                         {
-                            string[] names = m.MobName.Split(',');
+                            string[] names = m.MobName.Split(nameSeparator);
                             foreach (string name in names)
                             {
                                 enemies.Add(name.Trim().ToLower());
@@ -659,34 +631,6 @@ namespace ACT_Notes
         }
 
         // on the UI thread
-        private void SearchForDeath(object o)
-        {
-            CombatToggleEventArgs encounterInfo = o as CombatToggleEventArgs;
-            if(o != null)
-            {
-                Match match = null;
-                // since death should be near the end, search backwards through the last ~100 log lines
-                int endCount = encounterInfo.encounter.LogLines.Count > 100 ? encounterInfo.encounter.LogLines.Count-100 : 0;
-                for (int i = encounterInfo.encounter.LogLines.Count - 1; i >= endCount; i--)
-                {
-                    LogLineEntry logLine = encounterInfo.encounter.LogLines[i];
-                    match = rePain.Match(logLine.LogLine, logLineBracketIndex);
-                    if (!match.Success)
-                        match = reVerdict.Match(logLine.LogLine, logLineBracketIndex);
-                    if (match.Success)
-                    {
-                        string mob = match.Groups["mob"].Value;
-                        if (enemies.Contains(mob.ToLower()))
-                        {
-                            mUiContext.Post(KillProc, mob);
-                            Debug.WriteLineIf(debugMode, $"**SearchForDeath Post next name after {mob}");
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
         private Zone.PasteType AskPasteType(string what)
         {
             Zone.PasteType ret = Zone.PasteType.Append;
@@ -758,9 +702,37 @@ namespace ACT_Notes
                         zoneList = (ZoneList)xmlSerializer.Deserialize(fs);
                         zoneList.Zones.Sort();
                     }
+                    Version configVersion = new Version(zoneList.Version);
+                    bool needSep = configVersion <= new Version("1.3.0.0");
+                    bool configChanged = false;
                     foreach(Zone zone in zoneList.Zones)
                     {
                         zone.Mobs.Sort();
+                        if(needSep)
+                        {
+                            // fix name separator from older version
+                            foreach(Mob mob in zone.Mobs)
+                            {
+                                if (mob.MobName.Contains(","))
+                                {
+                                    mob.MobName = mob.MobName.Replace(',', nameSeparator);
+                                    configChanged = true;
+                                }
+                            }
+                        }
+                    }
+                    if(needSep)
+                    {
+                        var runtimeAssembly = typeof(Notes).GetTypeInfo().Assembly;
+                        var runtimeAssemblyVersion = runtimeAssembly.GetName().Version;
+                        zoneList.Version = runtimeAssemblyVersion.ToString();
+                        if(configChanged)
+                        {
+                            SimpleMessageBox.ShowDialog(ActGlobals.oFormActMain, 
+                                @"Notes plugin encounter name list separator converted from comma to semicolon.\par\par "
+                                + "If any individual mob names had commas, you need to edit them back in.",
+                                "Notes plugin config file changed");
+                        }
                     }
                     PopulateZonesTree();
                 }
@@ -1076,7 +1048,7 @@ namespace ACT_Notes
                                 Mob mob = treeViewZones.SelectedNode.Tag as Mob;
                                 if(mob != null)
                                 {
-                                    mob.MobName += $", {autoNodeName}";
+                                    mob.MobName += $"{nameSeparator} {autoNodeName}";
                                     treeViewZones.SelectedNode.Text = mob.MobName;
                                     treeViewZones.SelectedNode.Name = mob.MobName;
                                     BuildEnemyList();
@@ -1208,13 +1180,18 @@ namespace ACT_Notes
                             int audioLen = 0;
                             int visualStart = -1;
                             int visualLen = 0;
+                            bool isLastChar = false;
+                            bool isAudioColor = false;
+                            bool isVisualColor = false;
                             for (int i = 0; i < stopAt; i++)
                             {
                                 rtb.Select(i, 1);
+                                isLastChar = i == stopAt - 1;
 
                                 if (rtb.SelectionColor == EditCtrl.audioAlertColor
                                     || rtb.SelectionColor == EditCtrl.audioVisualAlertColor)
                                 {
+                                    isAudioColor = true;
                                     if (audioStart < 0)
                                     {
                                         audioStart = i;
@@ -1223,7 +1200,9 @@ namespace ACT_Notes
                                     else
                                         audioLen++;
                                 }
-                                else if (audioLen > 0)
+                                else
+                                    isAudioColor = false;
+                                if (audioLen > 0 && (!isAudioColor || isLastChar))
                                 {
                                     // alert color has ended
                                     rtb.Select(audioStart, audioLen);
@@ -1246,6 +1225,7 @@ namespace ACT_Notes
                                 if (rtb.SelectionColor == EditCtrl.visualAlertColor
                                     || rtb.SelectionColor == EditCtrl.audioVisualAlertColor)
                                 {
+                                    isVisualColor = true;
                                     if (visualStart < 0)
                                     {
                                         visualStart = i;
@@ -1254,7 +1234,9 @@ namespace ACT_Notes
                                     else
                                         visualLen++;
                                 }
-                                else if (visualLen > 0)
+                                else
+                                    isVisualColor = false;
+                                if (visualLen > 0 && (!isVisualColor || isLastChar))
                                 {
                                     // we have reached the end of the alert color
                                     rtb.Select(visualStart, visualLen);
@@ -1461,7 +1443,10 @@ namespace ACT_Notes
                         }
                     }
                     if (!removed)
+                    {
                         treeViewZones.SelectedNode = e.Node;
+                        BuildEnemyList();
+                    }
                 }
             }
         }
@@ -1631,20 +1616,25 @@ namespace ACT_Notes
 
         private void contextMenuStripZone_Opening(object sender, CancelEventArgs e)
         {
-            if (clickedZoneNode.Parent != null)
+            if (clickedZoneNode != null)
             {
-                deleteToolStripMenuItem.Text = "Delete Mob";
-                copyEntireZoneToXMLToolStripMenuItem.Visible = false;
-                relaxKillCheckToolStripMenuItem.Visible = false;
-            }
-            else if (clickedZoneNode != null)
-            {
-                deleteToolStripMenuItem.Text = "Delete Zone";
-                copyEntireZoneToXMLToolStripMenuItem.Visible = true;
-                relaxKillCheckToolStripMenuItem.Visible = true;
-                Zone zone = clickedZoneNode.Tag as Zone;
-                if(zone != null)
-                    relaxKillCheckToolStripMenuItem.Checked = zone.RelaxedKillCheck;
+                if (clickedZoneNode.Level == 1)
+                {
+                    // mob menu
+                    deleteToolStripMenuItem.Text = "Delete Mob";
+                    copyEntireZoneToXMLToolStripMenuItem.Visible = false;
+                    skipKillCheckToolStripMenuItem.Visible = false;
+                }
+                else
+                {
+                    // zone menu
+                    deleteToolStripMenuItem.Text = "Delete Zone";
+                    copyEntireZoneToXMLToolStripMenuItem.Visible = true;
+                    skipKillCheckToolStripMenuItem.Visible = true;
+                    Zone zone = clickedZoneNode.Tag as Zone;
+                    if (zone != null)
+                        skipKillCheckToolStripMenuItem.Checked = zone.SkipKillCheck;
+                }
             }
         }
 
@@ -1870,16 +1860,16 @@ namespace ACT_Notes
 
         }
 
-        private void relaxKillCheckToolStripMenuItem_Click(object sender, EventArgs e)
+        private void skipKillCheckToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Zone zone = clickedZoneNode.Tag as Zone;
-            if(zone != null)
+            if (zone != null)
             {
-                bool now = !zone.RelaxedKillCheck;
-                zone.RelaxedKillCheck = now;
-                relaxKillCheckToolStripMenuItem.Checked = now;
+                bool now = !zone.SkipKillCheck;
+                zone.SkipKillCheck = now;
+                skipKillCheckToolStripMenuItem.Checked = now;
+                skipKillCheck = now;
             }
-
         }
 
         #endregion Tree Context Menu

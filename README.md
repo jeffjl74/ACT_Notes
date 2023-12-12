@@ -12,19 +12,16 @@ An example is shown below.
 ![Overview](images/Overview.png)
 
 ## Version Notes
-_Version 1.3_
-* Another attempt to improve recognition of when a [mob dies](#monitoring).
-* Add a choice to share the notes for the zone and all its mobs in a single [share dialog](#sharing-notes).
-  * This works best if all players update to plugin version 1.3 and have the sender whitelisted.
-* Add [alert](#alerts) tags in the note text.
-* Aautomatic selection of the zone level note now only occurs if the zone note has an alert. Otherwise, the first mob is selected. 
-* Simplify handling of EQII color [coded zone names](#adding-zones-and-mobs) like __\\#00FF00Buried Takish'Hiz: Empire of Antiquity [Contested] 2__.
+_Version 1.3.1_
+* Added an option to advance to the next note at [combat end](#monitoring) regardless of success (to workaround EQII inconsistencies). This changes [alert](#alerts) behaviour for a failed fight. Default is enabled.
+* Fix to activate an alert even if is is the very last thing in a note.
+* Changed the encounter name delimiter from comma to semicolon to accomodate individual mob names that contain commas, like `Sleujess, Pride Guardian`. (GIFs below still show commas because those GIFs are a pain to make.) Existing notes are automatically converted.
 
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 
 The **[Add Mob]** button creates a new mob in the currently selected zone.
 
-Zone and mob names can be arbitrary text, but if they match in-game zone and mob names, the plugin will track when you enter the zone or kill the mob.
+Zone and mob names can be arbitrary text, but if they match in-game zone and mob names, the plugin will track when you enter the zone or fight the mob.
 
 For EQII zones with a color code and/or instance number, the plugin can match the zone name with a category that does not include the color code or the instance number. So if you don't want a category like __\\#00FF00Buried Takish'Hiz: Empire of Antiquity [Contested] 2__, a category name of __Buried Takish'Hiz: Empire of Antiquity [Contested]__ will still match when entering that zone.
 
@@ -35,7 +32,7 @@ In the example below, the desired zone is selected, then the **[Add Zone]** butt
 is pressed to accept the entry. Mobs are similarly added by selecting the mob, pressing the **[Add Mob]** button, 
 then the `Enter` key. Mob names can be picked up from either the zone encounter list or a particular mob encounter list. Both methods are shown in the example below.
 
-When a fight involves more than one name, if all the names are entered for the mob name (separated by commas), the plugin will try to match each name when monitoring kills. In the example below, two-mob fights are set up with minimal typing by using the following steps:
+When a fight involves more than one name, if all the names are entered for the mob name (separated by semicolons), the plugin will try to match each name when monitoring kills. In the example below, two-mob fights are set up with minimal typing by using the following steps:
   1. On the ACT Main tab, select the first mob
    2. On the plugin tab, press **[Add Mob]** and `<Enter>`
    3. On the Main tab, select the second mob in the first mob's encounter list
@@ -53,23 +50,27 @@ The editor can save many image types using either `Ctrl-V` to insert from the cl
 
 ## Monitoring
 Whenever a player enters a zone, the plugin searches its zone list for a matching zone name.
-If a match is found, that zone is selected. 
+If a match (stripping the color code and instance number if required) is found, that zone is selected. 
 
 If the zone itself has a note that contains any alerts, that note is displayed.
 
 If there are no alerts for the zone, but there are mobs, the first mob in the zone's list is selected, whether it has a note or not.
 
-When an encounter ends, the plugin looks for the killed enemy's name in its mob list for the zone. 
+When an encounter ends, the plugin looks for the enemy's name in its mob list for the zone. 
 If the name is found, the next mob in the zone list is automatically selected. 
-The intent is to display the note for the mob you are about to kill. 
+The intent is to display the note and alert for the mob you are about to kill. 
 
-But this process is not 100% reliable since EQII logs are inconsistent in reporting the death of a mob. To have the plugin advance to the next note even though EQII did not report the death of the previous mob, right-click the zone name and enable `Relax Kill Check`. This will cause the plugin to advance anytime the mob shows up in the combatants, so it can advance even though the mob did not die. This setting is saved for each individual zone and is disabled by default.
+If the `Skip Kill Check` option is disabled, the plugin only selects the note for the next mob if the combat was successful, i.e. ACT marks the encounter green.
+
+If the `Skip Kill Check` option is enabled, the plugin selects the next note regardless of combat success, i.e. whether ACT marks the encounter green, orange, or red. This is to work around EQII inconsistencies in reporting the death of a mob.
+
+The `Skip Kill Check` setting is accessed via right-clicking the zone name, is saved for each individual zone, and is enabled by default.
 
 If the mob order in the zone list is not in the order you usually kill them, 
 the list can be re-ordered by draggging and dropping the mobs into the desired order.
 
 ### Alerts
-When the plugin automatically selects the next mob upon zone-in or after recognizing the death of a mob, the plugin scans the selected note for color-coded alert tags. (If the user selects the note by clicking in ACT, alert tags do not generate alerts.)
+When the plugin automatically selects the next mob upon zone-in or after recognizing the end of combat for a mob, the plugin scans the selected note for color-coded alert tags. (If the user selects the note by clicking in ACT, alert tags do not generate alerts.)
 
 The plugin can generate both audio and visual alerts. 
 
@@ -77,11 +78,13 @@ The alerts are delalyed after the note is selected. The delays are individually 
 
 ![Alert-menu](images/alert-delay-menu.png)
 
+If the `Skip Kill Check` option is enabled, multiple alerts will be generated if a fight ends unsuccessfully. For example, in the screenshot above, if `Shadowscum` has an alert and the `Crusader Palaendor` fight fails, the `Shadowscum` alert still activates. The alert will activate on each end-of-combat for the `Crusader Palaendor` fight.
+
 The plugin uses the color of the text to generate alerts. Three different colors tag audio, visual, and audio-visual alerts. The text color is set using the editor toolbar. Select the text for the alert and press the audio, visual, or audio-visual toolbar button to toggle the color of the selected text. The buttons are outlined in red in the example below. When the cursor is within an alert tag, the appropriate button is "pressed". In the example below, the cursor is in the `cold damage` alert so the visual alert button is "pressed".
 
 ![Alert-buttons](images/alert-toolbar.png)
 
-If the note contains several alert tags, they all occur in the same audio alert and on separate lines in the popup alert. Audio will contain a pause between individual  alerts.
+If the note contains several alert tags, they all occur in the same audio alert and on separate lines in the popup alert. The audio will contain a pause between individual  alerts.
 
 For example, for the note above with visual alerts, five seconds after the note is automatically selected (i.e. you enter the zone, since that is the first mob in the zone), the plugin will show the popup
 

@@ -41,8 +41,6 @@ namespace ACT_Notes
             this.panel3 = new System.Windows.Forms.Panel();
             this.label3 = new System.Windows.Forms.Label();
             this.buttonZoneFindNext = new System.Windows.Forms.Button();
-            this.textBoxZoneFind = new ACT_Notes.TextBoxX();
-            this.richEditCtrl1 = new ACT_Notes.EditCtrl();
             this.panel5 = new System.Windows.Forms.Panel();
             this.radioButtonAccept = new System.Windows.Forms.RadioButton();
             this.label5 = new System.Windows.Forms.Label();
@@ -54,7 +52,6 @@ namespace ACT_Notes
             this.checkBoxCurrentCategory = new System.Windows.Forms.CheckBox();
             this.label4 = new System.Windows.Forms.Label();
             this.buttonFindNext = new System.Windows.Forms.Button();
-            this.textBoxEditFind = new ACT_Notes.TextBoxX();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.contextMenuStripZone = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.copyToXMLToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -69,7 +66,10 @@ namespace ACT_Notes
             this.linkLabel1 = new System.Windows.Forms.LinkLabel();
             this.label2 = new System.Windows.Forms.Label();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
-            this.relaxKillCheckToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.skipKillCheckToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.textBoxZoneFind = new ACT_Notes.TextBoxX();
+            this.richEditCtrl1 = new ACT_Notes.EditCtrl();
+            this.textBoxEditFind = new ACT_Notes.TextBoxX();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -191,27 +191,6 @@ namespace ACT_Notes
             this.toolTip1.SetToolTip(this.buttonZoneFindNext, "Find the next matching category");
             this.buttonZoneFindNext.UseVisualStyleBackColor = true;
             this.buttonZoneFindNext.Click += new System.EventHandler(this.buttonNodeFindNext_Click);
-            // 
-            // textBoxZoneFind
-            // 
-            this.textBoxZoneFind.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxZoneFind.ButtonTextClear = true;
-            this.textBoxZoneFind.Location = new System.Drawing.Point(40, 4);
-            this.textBoxZoneFind.Name = "textBoxZoneFind";
-            this.textBoxZoneFind.Size = new System.Drawing.Size(148, 20);
-            this.textBoxZoneFind.TabIndex = 1;
-            this.toolTip1.SetToolTip(this.textBoxZoneFind, "Incremental search in the category name");
-            this.textBoxZoneFind.TextChanged += new System.EventHandler(this.textBoxZoneFind_TextChanged);
-            this.textBoxZoneFind.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBoxZoneFind_KeyDown);
-            // 
-            // richEditCtrl1
-            // 
-            this.richEditCtrl1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.richEditCtrl1.Location = new System.Drawing.Point(0, 30);
-            this.richEditCtrl1.Name = "richEditCtrl1";
-            this.richEditCtrl1.Size = new System.Drawing.Size(483, 494);
-            this.richEditCtrl1.TabIndex = 1;
             // 
             // panel5
             // 
@@ -350,20 +329,6 @@ namespace ACT_Notes
             this.buttonFindNext.UseVisualStyleBackColor = true;
             this.buttonFindNext.Click += new System.EventHandler(this.buttonTextFindNext_Click);
             // 
-            // textBoxEditFind
-            // 
-            this.textBoxEditFind.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBoxEditFind.ButtonTextClear = true;
-            this.textBoxEditFind.Location = new System.Drawing.Point(40, 4);
-            this.textBoxEditFind.Name = "textBoxEditFind";
-            this.textBoxEditFind.Size = new System.Drawing.Size(326, 20);
-            this.textBoxEditFind.TabIndex = 1;
-            this.toolTip1.SetToolTip(this.textBoxEditFind, "Incremental search for text in the trigger\'s regular expression, alert, or timer " +
-        "name");
-            this.textBoxEditFind.TextChanged += new System.EventHandler(this.textBoxTextFind_TextChanged);
-            this.textBoxEditFind.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBoxEditFind_KeyDown);
-            // 
             // toolTip1
             // 
             this.toolTip1.AutomaticDelay = 750;
@@ -375,7 +340,7 @@ namespace ACT_Notes
             this.copyEntireZoneToXMLToolStripMenuItem,
             this.exportRTFToolStripMenuItem,
             this.toolStripSeparator1,
-            this.relaxKillCheckToolStripMenuItem,
+            this.skipKillCheckToolStripMenuItem,
             this.setAlertDelaysToolStripMenuItem,
             this.toolStripSeparator2,
             this.deleteToolStripMenuItem});
@@ -480,13 +445,47 @@ namespace ACT_Notes
             this.saveFileDialog1.DefaultExt = "rtf";
             this.saveFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
             // 
-            // relaxKillCheckToolStripMenuItem
+            // skipKillCheckToolStripMenuItem
             // 
-            this.relaxKillCheckToolStripMenuItem.Name = "relaxKillCheckToolStripMenuItem";
-            this.relaxKillCheckToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
-            this.relaxKillCheckToolStripMenuItem.Text = "Relax Kill Check";
-            this.relaxKillCheckToolStripMenuItem.ToolTipText = "Check to have partial success count as full success";
-            this.relaxKillCheckToolStripMenuItem.Click += new System.EventHandler(this.relaxKillCheckToolStripMenuItem_Click);
+            this.skipKillCheckToolStripMenuItem.Name = "skipKillCheckToolStripMenuItem";
+            this.skipKillCheckToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
+            this.skipKillCheckToolStripMenuItem.Text = "Skip Kill Check";
+            this.skipKillCheckToolStripMenuItem.Click += new System.EventHandler(this.skipKillCheckToolStripMenuItem_Click);
+            // 
+            // textBoxZoneFind
+            // 
+            this.textBoxZoneFind.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxZoneFind.ButtonTextClear = true;
+            this.textBoxZoneFind.Location = new System.Drawing.Point(40, 4);
+            this.textBoxZoneFind.Name = "textBoxZoneFind";
+            this.textBoxZoneFind.Size = new System.Drawing.Size(148, 20);
+            this.textBoxZoneFind.TabIndex = 1;
+            this.toolTip1.SetToolTip(this.textBoxZoneFind, "Incremental search in the category name");
+            this.textBoxZoneFind.TextChanged += new System.EventHandler(this.textBoxZoneFind_TextChanged);
+            this.textBoxZoneFind.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBoxZoneFind_KeyDown);
+            // 
+            // richEditCtrl1
+            // 
+            this.richEditCtrl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.richEditCtrl1.Location = new System.Drawing.Point(0, 30);
+            this.richEditCtrl1.Name = "richEditCtrl1";
+            this.richEditCtrl1.Size = new System.Drawing.Size(483, 494);
+            this.richEditCtrl1.TabIndex = 1;
+            // 
+            // textBoxEditFind
+            // 
+            this.textBoxEditFind.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.textBoxEditFind.ButtonTextClear = true;
+            this.textBoxEditFind.Location = new System.Drawing.Point(40, 4);
+            this.textBoxEditFind.Name = "textBoxEditFind";
+            this.textBoxEditFind.Size = new System.Drawing.Size(326, 20);
+            this.textBoxEditFind.TabIndex = 1;
+            this.toolTip1.SetToolTip(this.textBoxEditFind, "Incremental search for text in the trigger\'s regular expression, alert, or timer " +
+        "name");
+            this.textBoxEditFind.TextChanged += new System.EventHandler(this.textBoxTextFind_TextChanged);
+            this.textBoxEditFind.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBoxEditFind_KeyDown);
             // 
             // Notes
             // 
@@ -556,6 +555,6 @@ namespace ACT_Notes
         private ToolStripMenuItem setAlertDelaysToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator2;
         private ToolStripMenuItem copyEntireZoneToXMLToolStripMenuItem;
-        private ToolStripMenuItem relaxKillCheckToolStripMenuItem;
+        private ToolStripMenuItem skipKillCheckToolStripMenuItem;
     }
 }
