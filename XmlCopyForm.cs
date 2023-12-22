@@ -18,7 +18,8 @@ namespace ACT_Notes
         const int maxMacroLen = 1000;
         const int encodeLen = 6;
         string xml = string.Empty;
-        Zone _zone;
+        NoteGroup _noteGroup;
+        List<Zone> _zones;
         Mob _mob;
         List<string> chatSnippets;
         int nextSectionIndex = 0;
@@ -28,7 +29,7 @@ namespace ACT_Notes
         bool autoIncrementing = false;
         bool _compress = false;
         bool compressed = false;
-        bool _doZone = false;
+        Notes.XmlShareDepth _depth;
         public event EventHandler CompressCheckChanged;
         enum ListMode { CopyList, FileList };
         ListMode dialogMode;
@@ -50,37 +51,46 @@ namespace ACT_Notes
         }
 
 
-        public XmlCopyForm(Zone zone, Mob mob, bool compressChecked, bool enitreZone)
+        public XmlCopyForm(NoteGroup group, List<Zone> zones, Mob mob, bool compressChecked, Notes.XmlShareDepth depth)
         {
             InitializeComponent();
 
-            _zone = zone;
+            _noteGroup = group;
+            _zones = zones;
             _mob = mob;
             _compress = compressChecked;
-            _doZone = enitreZone;
+            _depth = depth;
         }
 
         private void XmlCopyForm_Load(object sender, EventArgs e)
         {
-            if(!string.IsNullOrEmpty(_zone.Prefix))
+            string sourcePrefix;
+            if (_depth == Notes.XmlShareDepth.GroupOnly || _depth == Notes.XmlShareDepth.GroupDeep)
+                sourcePrefix = _noteGroup.Prefix;
+            else if (_depth == Notes.XmlShareDepth.ZoneOnly || _depth == Notes.XmlShareDepth.ZoneDeep)
+                sourcePrefix = _zones[0].Prefix;
+            else
+                sourcePrefix = "/g";
+
+            if (!string.IsNullOrEmpty(sourcePrefix))
             {
-                if (_zone.Prefix == "/g")
+                if (sourcePrefix == "/g")
                     radioButtonG.Checked = true;
-                else if (_zone.Prefix == "/r")
+                else if (sourcePrefix == "/r")
                     radioButtonR.Checked = true;
                 else
                 {
                     radioButtonCustom.Checked = true;
-                    textBoxCustom.Text = _zone.Prefix;
+                    textBoxCustom.Text = sourcePrefix;
                 }
             }
             else
             {
-                // guess at a good prefix
-                if (_zone.ZoneName.Contains("["))
+                // guess at a prefix
+                if (_zones.Count > 0 && _zones[0].ZoneName.Contains("["))
                 {
                     radioButtonG.Checked = true;
-                    if (_zone.ZoneName.Contains("Raid"))
+                    if (_zones[0].ZoneName.Contains("Raid"))
                         radioButtonR.Checked = true;
                 }
                 else
@@ -136,8 +146,10 @@ namespace ACT_Notes
             string orig;
             if (mob != null)
                 orig = mob.Notes;
-            else
+            else if (zone != null)
                 orig = zone.Notes;
+            else
+                orig = _noteGroup.Notes;
             noBreaks = orig.Replace("\\par\r\n","\\par ").Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
             compressed = false;
             if(noBreaks.Contains(@"\pict") && checkBoxCompress.Checked)
@@ -217,10 +229,14 @@ namespace ACT_Notes
         private string MobToXML(Zone zone, Mob mob, string note, int sections)
         {
             string result = string.Empty;
-            if(zone != null)
+            if (zone != null || _noteGroup != null)
             {
                 StringBuilder sb = new StringBuilder();
-                sb.Append($"<{Notes.XmlSnippetType} Z='{EncodeShare(zone.ZoneName)}'");
+                sb.Append($"<{Notes.XmlSnippetType}");
+                if(zone != null)
+                    sb.Append($" Z='{EncodeShare(zone.ZoneName)}'");
+                if (_noteGroup != null)
+                    sb.Append($" G='{EncodeShare(_noteGroup.GroupName)}'");
                 sb.Append($" S='1/{sections}'");
                 if (mob != null)
                     sb.Append(string.Format(" M='{0}'", EncodeShare(mob.MobName)));
@@ -434,23 +450,37 @@ namespace ACT_Notes
 
         private void ReloadCopyList()
         {
-            if(_doZone)
+            listBox1.Items.Clear();
+
+            if (_depth == Notes.XmlShareDepth.GroupDeep || _depth == Notes.XmlShareDepth.ZoneDeep)
             {
                 chatSnippets = new List<string>();
-                if(_zone.Notes != null)
+
+                if (_depth == Notes.XmlShareDepth.GroupDeep && !string.IsNullOrEmpty(_noteGroup.Notes))
+                    chatSnippets.AddRange(Breakup(null, null, maxChatLen));
+
+                foreach (Zone zone in _zones)
                 {
-                    chatSnippets.AddRange(Breakup(_zone, null, maxChatLen));
-                }
-                for(int i= 0; i < _zone.Mobs.Count; i++)
-                {
-                    if(_zone.Mobs[i].Notes != null)
-                        chatSnippets.AddRange(Breakup(_zone, _zone.Mobs[i], maxChatLen));
+                    if (zone.Notes != null)
+                    {
+                        chatSnippets.AddRange(Breakup(zone, null, maxChatLen));
+                    }
+                    for (int i = 0; i < zone.Mobs.Count; i++)
+                    {
+                        if (zone.Mobs[i].Notes != null)
+                            chatSnippets.AddRange(Breakup(zone, zone.Mobs[i], maxChatLen));
+                    }
                 }
             }
+            else if (_depth == Notes.XmlShareDepth.ZoneOnly && _zones.Count > 0)
+                chatSnippets = Breakup(_zones[0], null, maxChatLen);
+            else if (_depth == Notes.XmlShareDepth.GroupOnly && !string.IsNullOrEmpty(_noteGroup.Notes))
+                chatSnippets = Breakup(null, null, maxChatLen);
+            else if (_depth == Notes.XmlShareDepth.MobOnly && _zones.Count > 0)
+                chatSnippets = Breakup(_zones[0], _mob, maxChatLen);
             else
-                chatSnippets = Breakup(_zone, _mob, maxChatLen);
+                return;
 
-            listBox1.Items.Clear();
             preIncremet = false;
             toolTip1.SetToolTip(buttonMacro, "Press to generate and list macro files");
             toolTip1.SetToolTip(buttonCopy, "Press to copy the selected XML item to the clipboard");
@@ -467,22 +497,25 @@ namespace ACT_Notes
 
         private void buttonDone_Click(object sender, EventArgs e)
         {
+            string prefix = string.Empty;
             if (radioButtonCustom.Checked)
             {
-                if (!string.IsNullOrEmpty(textBoxCustom.Text))
+                prefix = textBoxCustom.Text;
+                if (!string.IsNullOrEmpty(prefix))
                 {
-                    if (textBoxCustom.Text.StartsWith("/"))
-                        _zone.Prefix = textBoxCustom.Text;
-                    else
-                        _zone.Prefix = "/" + textBoxCustom.Text;
+                    if (!prefix.StartsWith("/"))
+                        prefix = "/" + prefix;
                 }
-                else
-                    _zone.Prefix = null;
             }
             else if (radioButtonG.Checked)
-                _zone.Prefix = "/g";
+                prefix = "/g";
             else if (radioButtonR.Checked)
-                _zone.Prefix = "/r";
+                prefix = "/r";
+
+            if (_depth == Notes.XmlShareDepth.GroupDeep || _depth == Notes.XmlShareDepth.GroupOnly)
+                _noteGroup.Prefix = prefix;
+            else if(_zones.Count > 0)
+                _zones[0].Prefix = prefix;
 
             Close();
         }
@@ -576,20 +609,33 @@ namespace ACT_Notes
             toolTip1.SetToolTip(buttonCopy, "Press to generate and list XML sections");
 
             List<string> lines = new List<string>();
-            if (_doZone)
+
+            if (_depth == Notes.XmlShareDepth.GroupDeep || _depth == Notes.XmlShareDepth.ZoneDeep)
             {
-                if (_zone.Notes != null)
+                if (_depth == Notes.XmlShareDepth.GroupDeep && !string.IsNullOrEmpty(_noteGroup.Notes))
+                    lines.AddRange(Breakup(null, null, maxChatLen - prefix.Length));
+
+                foreach (Zone zone in _zones)
                 {
-                    lines.AddRange(Breakup(_zone, null, maxMacroLen - prefix.Length));
-                }
-                for (int i = 0; i < _zone.Mobs.Count; i++)
-                {
-                    if (_zone.Mobs[i].Notes != null)
-                        lines.AddRange(Breakup(_zone, _zone.Mobs[i], maxMacroLen - prefix.Length));
+                    if (zone.Notes != null)
+                    {
+                        lines.AddRange(Breakup(zone, null, maxMacroLen - prefix.Length));
+                    }
+                    for (int i = 0; i < zone.Mobs.Count; i++)
+                    {
+                        if (zone.Mobs[i].Notes != null)
+                            lines.AddRange(Breakup(zone, zone.Mobs[i], maxMacroLen - prefix.Length));
+                    }
                 }
             }
+            else if (_depth == Notes.XmlShareDepth.ZoneOnly && _zones.Count > 0)
+                lines.AddRange(Breakup(_zones[0], null, maxChatLen));
+            else if (_depth == Notes.XmlShareDepth.GroupOnly && !string.IsNullOrEmpty(_noteGroup.Notes))
+                lines.AddRange(Breakup(null, null, maxChatLen));
+            else if (_depth == Notes.XmlShareDepth.MobOnly && _zones.Count > 0)
+                lines.AddRange(Breakup(_zones[0], _mob, maxChatLen));
             else
-                lines = Breakup(_zone, _mob, maxMacroLen - prefix.Length);
+                return;
 
             int fileCount = 1;
             int lineCount = 1;

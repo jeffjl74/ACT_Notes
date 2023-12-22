@@ -12,10 +12,12 @@ An example is shown below.
 ![Overview](images/Overview.png)
 
 ## Version Notes
-_Version 1.3.1_
-* Added an option to advance to the next note at [combat end](#monitoring) regardless of success (to workaround EQII inconsistencies). This changes [alert](#alerts) behaviour for a failed fight. Default is enabled.
+_Version 1.4.0_
+* Added a top level folder to help organize notes.
+* Added an option to advance to the next note at [combat end](#monitoring) regardless of the outcome of the fight (to workaround EQII inconsistencies). This changes [alert](#alerts) behaviour for a failed fight. Default is enabled.
 * Fix to activate an alert even if is is the very last thing in a note.
-* Changed the encounter name delimiter from comma to semicolon to accomodate individual mob names that contain commas, like `Sleujess, Pride Guardian`. (GIFs below still show commas because those GIFs are a pain to make.) Existing notes are automatically converted.
+* Fix alert window auto-sizing.
+* Changed the encounter name delimiter from comma to semicolon to accomodate individual mob names that contain commas, like `Sleujess, Pride Guardian`. (GIFs below still show commas because those GIFs are a pain to make.) __Existing notes are automatically converted.__
 
 ## Adding Zones and Mobs
 The **[Add Zone]** button creates a new entry in the zone list. 

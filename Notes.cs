@@ -15,11 +15,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Security.Policy;
+using System.Runtime.InteropServices;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.3.2.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
 
 namespace ACT_Notes
 {
@@ -27,12 +29,13 @@ namespace ACT_Notes
 	{
         const string helpUlr = "https://github.com/jeffjl74/ACT_Notes#act-notes-plugin";
         
-        readonly bool debugMode = false;  //set to test using imports, mouse selection alerts, and the game not running
+        readonly bool debugMode = true;  //set to test using imports, mouse selection alerts, and the game not running
 
         // the data
         ZoneList zoneList = new ZoneList();
         XmlSerializer xmlSerializer;
         char nameSeparator = ';';
+        public static string DefaultGroupName = " Default Group";
 
         // zone change support
         System.Timers.Timer zoneTimer = new System.Timers.Timer();
@@ -41,7 +44,6 @@ namespace ACT_Notes
         //tree enemies for the selected zone
         List<string> enemies = new List<string>();
         bool skipKillCheck = true;
-        //Regex reCleanActZone = new Regex(@"(?:\\#[0-9A-F]{6})?(?<zone>[^.0-9]+)", RegexOptions.Compiled);
         Regex reCleanActZone = new Regex(@"(?::.+?:)?(?<decoration>\\#[0-9A-F]{6})?(?<zone>.+?)(?: \d+)?$", RegexOptions.Compiled);
 
         // alerts
@@ -51,7 +53,12 @@ namespace ACT_Notes
 
         WindowsFormsSynchronizationContext mUiContext = new WindowsFormsSynchronizationContext();
         
-        // tree node search
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, UInt32 Msg, IntPtr wParam, IntPtr lParam);
+        UInt32 WM_VSCROLL = 277;
+
+        // tree nodes
+        class NodeLevels { public const int Group = 0; public const int Zone = 1; public const int Mob = 2; };
         List<TreeNode> foundNodes = new List<TreeNode>();
         int foundNodesIndex = 0;
         int foundZoneIndex = 0;
@@ -66,16 +73,19 @@ namespace ACT_Notes
         List<HighLightRange> highLightRanges = new List<HighLightRange>();
 
         // new node support
+        const string newGroup = "New Group";
         const string newMob = "New Mob";
         const string newZone = "New Zone";
         string autoNodeName = string.Empty;         //when selecting from the ACT main tab
 
         // xml share
         static public string XmlSnippetType = "Note";
+        public enum XmlShareDepth { GroupOnly, GroupDeep, ZoneOnly, ZoneDeep, MobOnly };
         static string pastePrefix = "--------- received ";
         List<string> whitelist = new List<string>();
         string xmlSendingPlayer = string.Empty;
         Zone xmlZone;
+        string xmlGroup = string.Empty;
         int xmlNumSections;
         int xmlCurrentSection;
         string[] xmlSections;
@@ -84,6 +94,7 @@ namespace ACT_Notes
         internal class xmlQclass 
         {
             public Zone zone;
+            public string group;
             public string data;
             public string player;
             public bool compressed;
@@ -258,10 +269,12 @@ namespace ACT_Notes
         {
             enemies.Clear();
             TreeNode result = null;
-            TreeNode[] nodes = treeViewZones.Nodes.Find(cleanZone, false);
-            if (nodes.Length > 0)
+            //TreeNode[] nodes = treeViewZones.Nodes.Find(cleanZone, true);
+            //if (nodes.Length > 0)
+            TreeNode zoneNode = FindZoneNode(cleanZone);
+            if (zoneNode != null)
             {
-                TreeNode zoneNode = nodes[0];
+                //TreeNode zoneNode = nodes[0];
                 Zone zone = zoneNode.Tag as Zone;
                 TreeNode mobNode = null;
                 if (zoneNode.Nodes.Count > 0)
@@ -379,6 +392,13 @@ namespace ACT_Notes
                             }
                             xmlZone.ZoneName = XmlCopyForm.DecodeShare(zone);
 
+                            string group;
+                            if(e.XmlAttributes.TryGetValue("G", out group))
+                            {
+                                if (!string.IsNullOrEmpty(group))
+                                    xmlGroup = XmlCopyForm.DecodeShare(group);
+                            }
+
                             string data;
                             e.XmlAttributes.TryGetValue("N", out data);
                             xmlSections[0] = data;
@@ -401,9 +421,10 @@ namespace ACT_Notes
                             if (!packetTrack.Contains(false))
                             {
                                 string data_enc = string.Join("", xmlSections);
-                                xmlQclass qd = new xmlQclass { zone = xmlZone, data = data_enc, player = xmlSendingPlayer, compressed = compressedXml };
+                                xmlQclass qd = new xmlQclass { zone = xmlZone, group = xmlGroup, data = data_enc, player = xmlSendingPlayer, compressed = compressedXml };
                                 xmlIncoming.Enqueue(qd);
                                 xmlZone = null;
+                                xmlGroup = string.Empty;
                                 mUiContext.Post(XmlPasteProc, null);
                             }
                         }
@@ -466,7 +487,7 @@ namespace ACT_Notes
                 catch (Exception tx)
                 {
                     SimpleMessageBox.Show(ActGlobals.oFormActMain, "Illegal note format: " + tx.Message, "Note Share Error");
-                    return;
+                    continue;
                 }
 
                 Zone zone = zoneList.Zones.Find(z => z.ZoneName == incZone.ZoneName);
@@ -485,9 +506,20 @@ namespace ACT_Notes
                     }
 
                     zoneList.Zones.Add(incZone);
-                    TreeNode zn = treeViewZones.Nodes.Add(incZone.ZoneName);
+
+                    string groupName = zoneList.NoteGroups.GetGroupName(incZone.ZoneName);
+                    if (string.IsNullOrEmpty(groupName))
+                        groupName = DefaultGroupName;
+                    TreeNode groupNode = FindGroupNode(groupName);
+                    if (groupNode == null)
+                        groupNode = FindOrCreateDefaultGroupNode();
+
+                    TreeNode zn = groupNode.Nodes.Add(incZone.ZoneName);
                     zn.Tag = incZone;
                     zn.Name = incZone.ZoneName;
+                    NoteGroup ng = groupNode.Tag as NoteGroup;
+                    if (ng != null)
+                        zoneList.NoteGroups.AddNoteIfNotGrouped(groupNode.Text, incZone.ZoneName);
                     if (incZone.Mobs.Count > 0)
                     {
                         TreeNode mn = zn.Nodes.Add(incZone.Mobs[0].MobName);
@@ -519,10 +551,13 @@ namespace ACT_Notes
                             // existing zone, existing mob
                             //
                             TreeNode destMobNode = null;
-                            TreeNode[] zoneNodes = treeViewZones.Nodes.Find(incZone.ZoneName, false);
-                            if (zoneNodes.Length > 0)
+                            //TreeNode[] zoneNodes = treeViewZones.Nodes.Find(incZone.ZoneName, true);
+                            //if (zoneNodes.Length > 0)
+                            TreeNode zoneNode = FindZoneNode(incZone.ZoneName);
+                            if(zoneNode != null)
                             {
-                                TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(mob.MobName, false);
+                                //TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(mob.MobName, false);
+                                TreeNode[] mobNodes = zoneNode.Nodes.Find(mob.MobName, false);
                                 if (mobNodes.Length > 0)
                                 {
                                     destMobNode = mobNodes[0];
@@ -570,12 +605,16 @@ namespace ACT_Notes
                             incZone.Mobs[0].Notes = data;
                             incZone.Mobs[0].KillOrder = zone.Mobs.Count;
                             zone.Mobs.Add(incZone.Mobs[0]);
-                            TreeNode[] nodes = treeViewZones.Nodes.Find(incZone.ZoneName, false);
-                            if (nodes.Length > 0)
+                            //TreeNode[] nodes = treeViewZones.Nodes.Find(incZone.ZoneName, true);
+                            //if (nodes.Length > 0)
+                            TreeNode node = FindZoneNode(incZone.ZoneName);
+                            if(node != null)
                             {
-                                TreeNode mn = nodes[0].Nodes.Add(incZone.Mobs[0].MobName);
+                                //TreeNode mn = nodes[0].Nodes.Add(incZone.Mobs[0].MobName);
+                                TreeNode mn = node.Nodes.Add(incZone.Mobs[0].MobName);
                                 mn.Tag = incZone.Mobs[0];
                                 mn.Name = incZone.Mobs[0].MobName;
+                                treeViewZones.Sort();
                                 mn.EnsureVisible();
                                 treeViewZones.SelectedNode = mn;
                             }
@@ -587,10 +626,13 @@ namespace ACT_Notes
                         // zone note for existing zone
                         //
                         TreeNode destZoneNode = null;
-                        TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, false);
-                        if (nodes.Length > 0)
+                        //TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, true);
+                        //if (nodes.Length > 0)
+                        TreeNode node = FindZoneNode(zone.ZoneName);
+                        if(node != null)
                         {
-                            destZoneNode = nodes[0];
+                            //destZoneNode = nodes[0];
+                            destZoneNode = node;
                             if (treeViewZones.SelectedNode == destZoneNode && richEditCtrl1.rtbDoc.Modified)
                                 SaveNote(destZoneNode, false);
                         }
@@ -700,7 +742,7 @@ namespace ACT_Notes
                     using (FileStream fs = new FileStream(settingsFile, FileMode.Open))
                     {
                         zoneList = (ZoneList)xmlSerializer.Deserialize(fs);
-                        zoneList.Zones.Sort();
+                        //zoneList.Zones.Sort();
                     }
                     Version configVersion = new Version(zoneList.Version);
                     bool needSep = configVersion <= new Version("1.3.0.0");
@@ -785,21 +827,40 @@ namespace ACT_Notes
         void PopulateZonesTree()
         {
             //try to save the current selection
-            string prevZone = string.Empty;
+            string prevNode = string.Empty;
             TreeNode sel = treeViewZones.SelectedNode;
             if (sel != null)
             {
-                prevZone = sel.Text;
+                prevNode = sel.Text;
             }
 
             treeViewZones.Nodes.Clear();
 
-            foreach(Zone zone in zoneList.Zones)
+            // first, make all of the group nodes
+            foreach (NoteGroup ng in zoneList.NoteGroups)
             {
+                TreeNode parent = new TreeNode(ng.GroupName);
+                parent.Name = ng.GroupName;
+                parent.Tag = ng;
+                treeViewZones.Nodes.Add(parent);
+            }
+
+            // add zones & mobs
+            foreach (Zone zone in zoneList.Zones)
+            {
+                string groupname = zoneList.NoteGroups.GetGroupName(zone.ZoneName);
+                TreeNode groupNode = FindGroupNode(groupname);
+                if (groupNode == null)
+                {
+                    // we get here when upgrading from plugin version without zone groups
+                    // put the zone in the default group
+                    groupNode = FindOrCreateDefaultGroupNode();
+                    zoneList.NoteGroups.PutNoteInGroup(DefaultGroupName, zone.ZoneName);
+                }
                 TreeNode znode = new TreeNode(zone.ZoneName);
                 znode.Name = zone.ZoneName; // so .Find() will work
                 znode.Tag = zone;
-                treeViewZones.Nodes.Add(znode);
+                groupNode.Nodes.Add(znode);
                 foreach(Mob mob in zone.Mobs)
                 {
                     TreeNode mnode = new TreeNode(mob.MobName);
@@ -811,44 +872,98 @@ namespace ACT_Notes
 
             treeViewZones.Sort();
 
+            // remove any orphan zones in the note groups
+            // (shouldn't be any if everything else is working correctly)
+            int gcount = zoneList.NoteGroups.Count;
+            for (int i = gcount - 1; i >= 0; i--)
+            {
+                int zcount = zoneList.NoteGroups[i].Zones.Count;
+                for(int j = zcount - 1; j>=0; j--)
+                {
+                    string nzone = zoneList.NoteGroups[i].Zones[j];
+                    List<Zone> zl = zoneList.Zones.Where(z => z.ZoneName == nzone).ToList();
+                    if (zl.Count == 0)
+                        zoneList.NoteGroups[i].Zones.Remove(nzone);
+                }
+            }
+
+
+            // use persistent setting to expand/collapse group nodes
+            foreach (TreeNode ttn in treeViewZones.Nodes)
+            {
+                if (ttn.Level == NodeLevels.Group)
+                {
+                    NoteGroup ng = zoneList.NoteGroups[ttn.Text];
+                    if(ng != null)
+                    {
+                        if (ng.Collapsed)
+                            ttn.Collapse();
+                        else
+                            ttn.Expand();
+                    }
+                }
+            }
 
             //try to restore previous selection
-            if (!string.IsNullOrEmpty(prevZone))
+            bool repos = false;
+            if (!string.IsNullOrEmpty(prevNode))
             {
-                TreeNode[] nodes = treeViewZones.Nodes.Find(prevZone, false);
-                if (nodes.Length > 0)
+                List<TreeNode> nodes = treeViewZones.FlattenTree().Where(n => n.Name == prevNode).ToList();
+                if (nodes.Count > 0)
                 {
                     treeViewZones.SelectedNode = nodes[0];
                     treeViewZones.SelectedNode.EnsureVisible();
+                    repos = true;
                 }
             }
-            else
+            if(!repos)
             {
                 if(treeViewZones.Nodes.Count > 0)
                     treeViewZones.SelectedNode = treeViewZones.Nodes[0];
             }
         }
 
+        TreeNode FindGroupNode(string name)
+        {
+            if(!string.IsNullOrEmpty(name))
+            {
+                foreach (TreeNode treeNode in treeViewZones.Nodes)
+                    if (treeNode.Name == name)
+                        return treeNode;
+            }
+            return null;
+        }
+
+        TreeNode FindZoneNode(string name)
+        {
+            List<TreeNode> found = treeViewZones.FlattenTree().Where(n => n.Level == NodeLevels.Zone && n.Name == name).ToList();
+            if (found.Count > 0)
+                return found[0];
+            return null;
+        }
+
         private void treeViewZones_DrawNode(object sender, DrawTreeNodeEventArgs e)
         {
             if (e.Node == null) return;
 
+            var font = e.Node.NodeFont ?? e.Node.TreeView.Font;
+
             // if treeview's HideSelection property is "True", 
             // this will always returns "False" on unfocused treeview
             var selected = (e.State & TreeNodeStates.Selected) == TreeNodeStates.Selected;
-            var unfocused = !e.Node.TreeView.Focused;
 
-            // keep the focused highlight if selected and unfocused
+            // keep the focused highlight if selected
             // otherwise, default colors
-            if (selected && unfocused)
+            if (selected)
             {
-                var font = e.Node.NodeFont ?? e.Node.TreeView.Font;
                 e.Graphics.FillRectangle(SystemBrushes.Highlight, e.Bounds);
-                TextRenderer.DrawText(e.Graphics, e.Node.Text, font, e.Bounds, SystemColors.HighlightText, TextFormatFlags.GlyphOverhangPadding);
+                // use DrawString so an & isn't replaced with an underline
+                e.Graphics.DrawString(e.Node.Text, font, Brushes.White, new Point(e.Bounds.X, e.Bounds.Y));
             }
             else
             {
-                e.DrawDefault = true;
+                e.Graphics.FillRectangle(SystemBrushes.Window, e.Bounds);
+                e.Graphics.DrawString(e.Node.Text, font, Brushes.Black, new Point(e.Bounds.X, e.Bounds.Y));
             }
         }
 
@@ -976,38 +1091,60 @@ namespace ACT_Notes
             }
         }
 
-        private void buttonAddZone_Click(object sender, EventArgs e)
+        private void buttonAddGroup_Click(object sender, EventArgs e)
         {
-            autoNodeName = string.Empty;
-            string name = newZone;
-            // if there is a zone selection on the ACT Main tab, use it as the default
-            TreeNode actNode = ActGlobals.oFormActMain.MainTreeView.SelectedNode;
-            if (actNode != null)
-            {
-                if (actNode.Level == 0)
-                {
-                    string fight = actNode.Text;
-                    int dash = fight.IndexOf(" - ");
-                    name = fight.Substring(0, dash);
-                    Match match = reCleanActZone.Match(name);
-                    if (match.Success)
-                        name = match.Groups["zone"].Value.Trim();
-                    autoNodeName = name; //if the user just accepts this, this is how .AfterLabledit() figures it out
-                }
-            }
-            TreeNode add = new TreeNode(name);
+            TreeNode add = new TreeNode(newGroup);
             treeViewZones.Nodes.Add(add);
             treeViewZones.SelectedNode = add;
             Application.DoEvents();
             add.BeginEdit();
         }
 
+        private void buttonAddZone_Click(object sender, EventArgs e)
+        {
+            autoNodeName = string.Empty;
+            string name = newZone;
+
+            TreeNode grpNode = treeViewZones.SelectedNode;
+            if(grpNode == null)
+                grpNode = FindOrCreateDefaultGroupNode();
+            else if (grpNode.Level == NodeLevels.Mob)
+                grpNode = grpNode.Parent.Parent;
+            else if (grpNode.Level == NodeLevels.Zone)
+                grpNode = grpNode.Parent;
+            if (grpNode != null && grpNode.Level == NodeLevels.Group)
+            {
+                // if there is a zone selection on the ACT Main tab, use it as the default
+                TreeNode actNode = ActGlobals.oFormActMain.MainTreeView.SelectedNode;
+                if (actNode != null)
+                {
+                    if (actNode.Level == NodeLevels.Group)
+                    {
+                        string fight = actNode.Text;
+                        int dash = fight.IndexOf(" - ");
+                        name = fight.Substring(0, dash);
+                        Match match = reCleanActZone.Match(name);
+                        if (match.Success)
+                            name = match.Groups["zone"].Value.Trim();
+                        autoNodeName = name; //if the user just accepts this, this is how .AfterLabledit() figures it out
+                    }
+                }
+                TreeNode add = new TreeNode(name);
+                grpNode.Nodes.Add(add);
+                treeViewZones.SelectedNode = add;
+                Application.DoEvents();
+                add.BeginEdit();
+            }
+            else
+                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Select a top-level Group node as the parent for the new zone.", "Select Parent");
+        }
+
         private void buttonAddMob_Click(object sender, EventArgs e)
         {
             TreeNode zoneNode = treeViewZones.SelectedNode;
-            if (zoneNode != null)
+            if (zoneNode != null && zoneNode.Level >= NodeLevels.Zone)
             {
-                if (zoneNode.Level == 1)
+                if (zoneNode.Level == NodeLevels.Mob)
                     zoneNode = zoneNode.Parent;
                 string name = newMob;
                 autoNodeName = string.Empty;
@@ -1038,7 +1175,7 @@ namespace ACT_Notes
                         // individual fight level
                         name = actNode.Text;
                         autoNodeName = name;
-                        if (treeViewZones.SelectedNode.Level == 1)
+                        if (treeViewZones.SelectedNode.Level == NodeLevels.Mob)
                         {
                             // plugin mob is selected
                             DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Append {autoNodeName} to {treeViewZones.SelectedNode.Text}?", "Apppend",
@@ -1066,6 +1203,8 @@ namespace ACT_Notes
                 zoneNode.Expand();
                 add.BeginEdit();
             }
+            else
+                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Select a zone node as the parent for the new mob.", "Select Zone");
 
         }
 
@@ -1096,12 +1235,27 @@ namespace ACT_Notes
 
                 Zone zone = null;
                 Mob mob = null;
+                NoteGroup noteGroup = null;
                 int audioDelay = 5;
                 int visualDelay = 5;
                 TreeNode sel = treeViewZones.SelectedNode;
                 if (sel != null)
                 {
-                    if (sel.Level == 0)
+                    if(sel.Level == NodeLevels.Group)
+                    {
+                        noteGroup = sel.Tag as NoteGroup;
+                        if(noteGroup != null)
+                        {
+                            if (!string.IsNullOrEmpty(noteGroup.Notes))
+                            {
+                                richEditCtrl1.rtbDoc.Rtf = noteGroup.Notes;
+                                richEditCtrl1.rtbDoc.Modified = false;
+                            }
+                            audioDelay = noteGroup.AudioDelay;
+                            visualDelay = noteGroup.VisualDelay;
+                        }
+                    }
+                    else if (sel.Level == NodeLevels.Zone)
                     {
                         zone = sel.Tag as Zone;
                         if (zone != null)
@@ -1115,7 +1269,7 @@ namespace ACT_Notes
                             visualDelay = zone.VisualDelay;
                         }
                     }
-                    else if (sel.Level == 1)
+                    else if (sel.Level == NodeLevels.Mob)
                     {
                         TreeNode parent = sel.Parent;
                         zone = parent.Tag as Zone;
@@ -1135,9 +1289,14 @@ namespace ACT_Notes
                         }
                     }
 
-                    if(zone != null)
+                    Zone.PasteType pasteType = Zone.PasteType.Append;
+                    if (zone != null)
+                        pasteType = zone.Paste;
+                    if (noteGroup != null)
+                        pasteType = noteGroup.Paste;
+                    if(zone != null || noteGroup != null)
                     {
-                        switch(zone.Paste)
+                        switch(pasteType)
                         {
                             case Zone.PasteType.Append:
                                 radioButtonAppend.Checked = true;
@@ -1169,7 +1328,13 @@ namespace ACT_Notes
                     if (!doNotAnnounce || debugMode)
                     {
                         // search for alert tags
-                        string header = mob != null ? mob.MobName : (zone != null ? zone.ZoneName : "");
+                        string header = String.Empty;
+                        if (mob != null)
+                            header = mob.MobName;
+                        else if(zone != null)
+                            header = zone.ZoneName;
+                        else if (noteGroup != null)
+                            header = noteGroup.GroupName;
                         StringBuilder audioAlerts = new StringBuilder();
                         List<string> popAlerts = new List<string>();
                         // use a separate RTB to hide the color search process from view
@@ -1346,15 +1511,16 @@ namespace ACT_Notes
                 // if the user accepted a mob name from the main ACT tree without edit,
                 // e.Label will be null and autoMobName will not be null
                 string nodeName = e.Label;
-                if (e.Label == null && !string.IsNullOrEmpty(autoNodeName))
+                if (e.Label == null && !string.IsNullOrEmpty(autoNodeName) && e.Node.Level > NodeLevels.Group)
                     nodeName = autoNodeName;
 
                 if (string.IsNullOrEmpty(nodeName))
                 {
-                    if ((e.Node.Level == 0 && e.Node.Text == newZone)
-                        || e.Node.Level == 1 && e.Node.Text == newMob)
+                    if ((e.Node.Level == NodeLevels.Group && e.Node.Text == newGroup)
+                        || e.Node.Level == NodeLevels.Zone && e.Node.Text == newZone
+                        || e.Node.Level == NodeLevels.Mob && e.Node.Text == newMob)
                     {
-                        // we don't accept "New Mob" or "New Zone". The user must enter something else
+                        // we don't accept "New Group", "New Mob" or "New Zone". The user must enter something else
                         DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain, @"Please enter a new name.\line Or press [Cancel] to cancel the add.", "Invalid entry",
                             MessageBoxButtons.OKCancel);
                         if (result == DialogResult.OK)
@@ -1376,8 +1542,41 @@ namespace ACT_Notes
                 else
                 {
                     // user modified the node name
-                    if (e.Node.Level == 0)
+
+                    if(e.Node.Level == NodeLevels.Group)
                     {
+                        NoteGroup newGroup = new NoteGroup{ GroupName = nodeName };
+                        if (zoneList.NoteGroups.Contains(newGroup))
+                        {
+                            SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Group Names are not allowed.", "Invalid entry",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            e.Node.EndEdit(true);
+                            e.Node.Remove();
+                            autoNodeName = String.Empty;
+                            removed = true;
+                        }
+                        else
+                        {
+                            // group node
+                            if (e.Node.Tag == null)
+                            {
+                                // new group
+                                zoneList.NoteGroups.Add(newGroup);
+                                e.Node.Tag = newGroup;
+                                e.Node.Name = nodeName;
+                            }
+                            else
+                            {
+                                // editing an existing group
+                                NoteGroup noteGroup = e.Node.Tag as NoteGroup;
+                                if (noteGroup != null)
+                                    noteGroup.GroupName = nodeName;
+                            }
+                        }
+                    }
+                    else if (e.Node.Level == NodeLevels.Zone)
+                    {
+                        NoteGroup ng = e.Node.Parent.Tag as NoteGroup;
                         Zone newZone = new Zone { ZoneName = nodeName };
                         if (zoneList.Zones.Contains(newZone))
                         {
@@ -1397,6 +1596,8 @@ namespace ACT_Notes
                                 zoneList.Zones.Add(newZone);
                                 e.Node.Tag = newZone;
                                 e.Node.Name = nodeName;
+                                if(ng != null)
+                                    ng.Zones.Add(nodeName);
                             }
                             else
                             {
@@ -1456,8 +1657,8 @@ namespace ACT_Notes
             TreeNode node = e.Item as TreeNode;
             if (node != null)
             {
-                if (node.Level == 0)
-                    return; // can't drag zones
+                if (node.Level == NodeLevels.Group)
+                    return; // can't drag groups
 
                 if (treeViewZones.SelectedNode == node && richEditCtrl1.rtbDoc.Modified)
                 {
@@ -1469,7 +1670,49 @@ namespace ACT_Notes
 
         private void treeViewZones_DragEnter(object sender, DragEventArgs e)
         {
-            e.Effect = DragDropEffects.Move;
+            e.Effect = DragDropEffects.None;
+        }
+
+        private void treeViewZones_DragOver(object sender, DragEventArgs e)
+        {
+            TreeView tv = sender as TreeView;
+
+            // Retrieve the client coordinates of the drop location.
+            Point targetPoint = tv.PointToClient(new Point(e.X, e.Y));
+
+            // Retrieve the node at the drop location.
+            TreeNode targetNode = tv.GetNodeAt(targetPoint);
+
+            // Retrieve the node that was dragged.
+            TreeNode draggedNode = (TreeNode)e.Data.GetData(typeof(TreeNode));
+
+            // need both nodes and they can't be the same
+            if (draggedNode == null || targetNode == null || draggedNode.Equals(targetNode))
+                e.Effect = DragDropEffects.None;
+
+            // ok if dragging a zone to a different group
+            else if (targetNode.Level == NodeLevels.Group && draggedNode.Level == NodeLevels.Zone && !draggedNode.Parent.Equals(targetNode))
+                e.Effect = DragDropEffects.Move;
+
+            // ok if dragging a mob within a zone
+            else if ((targetNode.Level == NodeLevels.Mob && draggedNode.Level == NodeLevels.Mob && draggedNode.Parent.Equals(targetNode.Parent))
+                || (targetNode.Level == NodeLevels.Zone && draggedNode.Level == NodeLevels.Mob && draggedNode.Parent.Equals(targetNode)))
+                e.Effect = DragDropEffects.Move;
+
+            else
+                e.Effect = DragDropEffects.None;
+
+            if ((targetPoint.Y + 20) > tv.Height)
+            {
+                // scroll down
+                SendMessage(tv.Handle, WM_VSCROLL, (IntPtr)1, (IntPtr)0);
+            }
+            else if (targetPoint.Y < 20)
+            {
+                // scroll up
+                SendMessage(tv.Handle, WM_VSCROLL, (IntPtr)0, (IntPtr)0);
+            }
+
         }
 
         private void treeViewZones_DragDrop(object sender, DragEventArgs e)
@@ -1488,11 +1731,28 @@ namespace ACT_Notes
             if (draggedNode == null || targetNode == null || draggedNode.Equals(targetNode))
                 return;
 
-            // only allowing dragging within the same zone
-            // both nodes must have the same parent
-            if (targetNode.Parent != null
-                && draggedNode.Parent != null
-                && targetNode.Parent.Equals(draggedNode.Parent))
+            // dragging a zone to a different group
+            if (targetNode.Level == NodeLevels.Group && draggedNode.Level == NodeLevels.Zone && !draggedNode.Parent.Equals(targetNode))
+            {
+                Zone zone = draggedNode.Tag as Zone;
+                NoteGroup ng = targetNode.Tag as NoteGroup;
+                if(zone != null && ng != null)
+                {
+                    NoteGroup oldGrp = zoneList.NoteGroups[zoneList.NoteGroups.GetGroupName(zone.ZoneName)];
+                    oldGrp.Zones.Remove(zone.ZoneName);
+
+                    ng.Zones.Add(zone.ZoneName);
+
+                    // Remove the node from its current location in the tree
+                    draggedNode.Remove();
+                    // and add it to the drop location.
+                    targetNode.Nodes.Add(draggedNode);
+                }
+            }
+
+            // dragging mob within the same zone
+            else if ((targetNode.Level == NodeLevels.Mob && draggedNode.Level == NodeLevels.Mob && draggedNode.Parent.Equals(targetNode.Parent))
+            || (targetNode.Level == NodeLevels.Zone && draggedNode.Level == NodeLevels.Mob && draggedNode.Parent.Equals(targetNode)))
             {
                 // need to update the source data since the treeview is sorted
                 // and will automatically re-sort when the nodes move
@@ -1528,6 +1788,7 @@ namespace ACT_Notes
                             // and add it to the drop location.
                             draggedNode.Remove();
                             targetNode.Parent.Nodes.Insert(targetIndex, draggedNode);
+                            treeViewZones.Sort();
                         }
                     }
                     catch(Exception dx)
@@ -1545,10 +1806,13 @@ namespace ACT_Notes
             if (!string.IsNullOrEmpty(nameKilled))
             {
                 // see if we have anything for the current zone
-                TreeNode[] zoneNodes = treeViewZones.Nodes.Find(cleanZone, false);
-                if (zoneNodes.Length > 0)
+                //TreeNode[] zoneNodes = treeViewZones.Nodes.Find(cleanZone, false);
+                //if (zoneNodes.Length > 0)
+                TreeNode zoneNode = FindZoneNode(cleanZone);
+                if(zoneNode != null)
                 {
-                    Zone zone = zoneNodes[0].Tag as Zone;
+                    //Zone zone = zoneNodes[0].Tag as Zone;
+                    Zone zone = zoneNode.Tag as Zone;
                     if(zone != null)
                     {
                         // see if we have a mob that matches the passed name
@@ -1570,7 +1834,8 @@ namespace ACT_Notes
                             if (next != null)
                             {
                                 // find that mob in the tree
-                                TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(next.MobName, false);
+                                //TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(next.MobName, false);
+                                TreeNode[] mobNodes = zoneNode.Nodes.Find(next.MobName, false);
                                 if (mobNodes.Length > 0)
                                 {
                                     // select the next mob in the kill order
@@ -1598,6 +1863,30 @@ namespace ACT_Notes
             }
         }
 
+        private void treeViewZones_AfterCollapse(object sender, TreeViewEventArgs e)
+        {
+            if(e.Node.Level == NodeLevels.Group)
+            {
+                NoteGroup grp = zoneList.NoteGroups[e.Node.Text];
+                if(grp != null)
+                {
+                    grp.Collapsed = true;
+                }
+            }
+        }
+
+        private void treeViewZones_AfterExpand(object sender, TreeViewEventArgs e)
+        {
+            if (e.Node.Level == NodeLevels.Group)
+            {
+                NoteGroup grp = zoneList.NoteGroups[e.Node.Text];
+                if (grp != null)
+                {
+                    grp.Collapsed = false;
+                }
+            }
+        }
+
         #region Tree Context Menu
 
         private void treeViewZones_MouseDown(object sender, MouseEventArgs e)
@@ -1618,7 +1907,14 @@ namespace ACT_Notes
         {
             if (clickedZoneNode != null)
             {
-                if (clickedZoneNode.Level == 1)
+                if(clickedZoneNode.Level == NodeLevels.Group)
+                {
+                    deleteToolStripMenuItem.Text = "Delete Group";
+                    copyEntireZoneToXMLToolStripMenuItem.Visible = true;
+                    copyEntireZoneToXMLToolStripMenuItem.Text = "Copy Entire Group to XML";
+                    skipKillCheckToolStripMenuItem.Visible = false;
+                }
+                else if (clickedZoneNode.Level == NodeLevels.Mob)
                 {
                     // mob menu
                     deleteToolStripMenuItem.Text = "Delete Mob";
@@ -1630,6 +1926,7 @@ namespace ACT_Notes
                     // zone menu
                     deleteToolStripMenuItem.Text = "Delete Zone";
                     copyEntireZoneToXMLToolStripMenuItem.Visible = true;
+                    copyEntireZoneToXMLToolStripMenuItem.Text = "Copy Entire Zone to XML";
                     skipKillCheckToolStripMenuItem.Visible = true;
                     Zone zone = clickedZoneNode.Tag as Zone;
                     if (zone != null)
@@ -1648,43 +1945,62 @@ namespace ACT_Notes
             xmlShareMenuClick(true);
         }
 
-        private void xmlShareMenuClick(bool entireZone)
+        private void xmlShareMenuClick(bool deep)
         {
             if (clickedZoneNode != null)
             {
+                XmlShareDepth depth = XmlShareDepth.MobOnly; // set default just to satisfy C# lint
+
                 if (clickedZoneNode.Equals(treeViewZones.SelectedNode))
                 {
                     SaveNote(clickedZoneNode, false);
                 }
 
-                Zone zone;
+                NoteGroup noteGroup = null;
+                List<Zone> zones = new List<Zone>();
                 Mob mob = null;
                 bool haveNote = false;
 
-                if (clickedZoneNode.Parent != null)
+                if(clickedZoneNode.Level == NodeLevels.Group)
                 {
-                    zone = clickedZoneNode.Parent.Tag as Zone;
-                    mob = clickedZoneNode.Tag as Mob;
-                    haveNote = mob.Notes != null;
-                }
-                else
-                {
-                    zone = clickedZoneNode.Tag as Zone;
-                    haveNote = zone.Notes != null;
-                    if (entireZone && !haveNote)
+                    noteGroup = clickedZoneNode.Tag as NoteGroup;
+                    haveNote = noteGroup.Notes != null;
+                    depth = deep ? XmlShareDepth.GroupDeep : XmlShareDepth.GroupOnly;
+                    if (deep)
                     {
-                        for (int i = 0; i < zone.Mobs.Count; i++)
+                        depth = XmlShareDepth.GroupDeep;
+                        foreach (TreeNode treeNode in clickedZoneNode.Nodes)
                         {
-                            if(zone.Mobs[i].Notes != null)
+                            Zone zone = treeNode.Tag as Zone;
+                            if (zone != null)
                             {
-                                if (zone.Mobs[i].Notes.Length > 0)
-                                {
-                                    haveNote = true;
-                                    break;
-                                }
+                                bool zoneNote = ZoneHasNotes(zone);
+                                haveNote |= zoneNote;
+                                if (zoneNote)
+                                    zones.Add(zone);
                             }
                         }
                     }
+                }
+                else if (clickedZoneNode.Level == NodeLevels.Mob)
+                {
+                    noteGroup = clickedZoneNode.Parent.Parent.Tag as NoteGroup;
+                    Zone zone = clickedZoneNode.Parent.Tag as Zone;
+                    depth = XmlShareDepth.MobOnly;
+                    zones.Add(zone);
+                    mob = clickedZoneNode.Tag as Mob;
+                    haveNote = mob.Notes != null;
+                }
+                else if (clickedZoneNode.Level == NodeLevels.Zone)
+                {
+                    noteGroup = clickedZoneNode.Parent.Tag as NoteGroup;
+                    Zone zone = clickedZoneNode.Tag as Zone;
+                    depth = deep ? XmlShareDepth.ZoneDeep : XmlShareDepth.ZoneOnly;
+                    zones.Add(zone);
+                    if (deep)
+                        haveNote = ZoneHasNotes(zone);
+                    else
+                        haveNote = zone.Notes != null;
                 }
 
                 if (!haveNote)
@@ -1692,13 +2008,33 @@ namespace ACT_Notes
                         "Empty note", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 else
                 {
-                    XmlCopyForm form = new XmlCopyForm(zone, mob, zoneList.CompressImages, entireZone);
+                    XmlCopyForm form = new XmlCopyForm(noteGroup, zones, mob, zoneList.CompressImages, depth);
                     form.CompressCheckChanged += Form_CompressCheckChanged;
                     form.Show();
                     PositionChildForm(form, clickedZonePoint);
                     form.TopMost = true;
                 }
             }
+        }
+
+        private bool ZoneHasNotes(Zone zone)
+        {
+            bool haveNote = zone.Notes != null;
+            if (!haveNote)
+            {
+                for (int i = 0; i < zone.Mobs.Count; i++)
+                {
+                    if (zone.Mobs[i].Notes != null)
+                    {
+                        if (zone.Mobs[i].Notes.Length > 0)
+                        {
+                            haveNote = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            return haveNote;
         }
 
         private void Form_CompressCheckChanged(object sender, EventArgs e)
@@ -1710,13 +2046,58 @@ namespace ACT_Notes
             }
         }
 
+        private TreeNode FindOrCreateDefaultGroupNode()
+        {
+            NoteGroup dng = zoneList.NoteGroups[DefaultGroupName];
+            TreeNode tgn = FindGroupNode(DefaultGroupName);
+            if (dng == null)
+            {
+                dng = zoneList.NoteGroups.AddGroup(DefaultGroupName);
+            }
+            if (tgn == null)
+            {
+                tgn = new TreeNode(DefaultGroupName);
+                tgn.Name = DefaultGroupName;
+                treeViewZones.Nodes.Add(tgn);
+            }
+            tgn.Tag = dng;
+            return tgn;
+        }
+
         private void deleteToolStripMenuItem_Click(object sender, EventArgs e)
         {
             try
             {
                 if (clickedZoneNode != null)
                 {
-                    if (clickedZoneNode.Level == 0)
+                    if (clickedZoneNode.Level == NodeLevels.Group)
+                    {
+                        // delete group, move the zones to the default group
+                        NoteGroup ng = clickedZoneNode.Tag as NoteGroup;
+                        if (ng != null)
+                        {
+                            // move the zones to the default group
+                            TreeNode tgn = FindOrCreateDefaultGroupNode();
+                            NoteGroup dng = tgn.Tag as NoteGroup;
+                            dng.Zones.AddRange(ng.Zones);
+                            if(tgn != null)
+                            {
+                                int zcount = clickedZoneNode.Nodes.Count;
+                                for (int i = zcount-1; i >= 0; i--)
+                                {
+                                    TreeNode tn = clickedZoneNode.Nodes[i];
+                                    treeViewZones.Nodes.Remove(tn);
+                                    tgn.Nodes.Add(tn);
+                                }
+                            }
+
+                            // remove the old group
+                            ng.Zones.Clear();
+                            zoneList.NoteGroups.Remove(ng);
+                            treeViewZones.Nodes.Remove(clickedZoneNode);
+                        }
+                    }
+                    else if (clickedZoneNode.Level == NodeLevels.Zone)
                     {
                         // delete zone
                         string category = clickedZoneNode.Text;
@@ -1731,7 +2112,7 @@ namespace ACT_Notes
                             }
                         }
                     }
-                    else if (clickedZoneNode.Level == 1)
+                    else if (clickedZoneNode.Level == NodeLevels.Mob)
                     {
                         // delete mob
                         Zone zone = clickedZoneNode.Parent.Tag as Zone;
@@ -1768,9 +2149,9 @@ namespace ACT_Notes
                     RichTextBox rtb = new RichTextBox();
 
                     // zone name
-                    if(clickedZoneNode.Level == 0)
+                    if(clickedZoneNode.Level == NodeLevels.Zone)
                         rtb.Text = clickedZoneNode.Text + "\n\n";
-                    else
+                    else if(clickedZoneNode.Level == NodeLevels.Mob)
                         rtb.Text = clickedZoneNode.Parent.Text + "\n\n";
                     rtb.Select(0, rtb.TextLength);
                     Font currentFont = rtb.SelectionFont;
@@ -1778,7 +2159,7 @@ namespace ACT_Notes
                     newFontStyle = rtb.SelectionFont.Style | FontStyle.Bold | FontStyle.Underline;
                     rtb.SelectionFont = new Font(currentFont.FontFamily, currentFont.Size, newFontStyle);
 
-                    if (clickedZoneNode.Level == 0)
+                    if (clickedZoneNode.Level == NodeLevels.Zone)
                     {
                         // export the whole zone
                         Zone zone = clickedZoneNode.Tag as Zone;
@@ -1803,7 +2184,7 @@ namespace ACT_Notes
                             }
                         }
                     } // end of zone save
-                    else
+                    else if (clickedZoneNode.Level == NodeLevels.Mob)
                     {
                         // mob note
                         Mob mob = clickedZoneNode.Tag as Mob;
@@ -1826,7 +2207,22 @@ namespace ACT_Notes
             if (clickedZoneNode != null)
             {
                 DelaysForm delaysForm = new DelaysForm();
-                if (clickedZoneNode.Level == 0)
+                if (clickedZoneNode.Level == NodeLevels.Group)
+                {
+                    delaysForm.Text = "Zone Group Alert Delays";
+                    NoteGroup ng = clickedZoneNode.Tag as NoteGroup;
+                    if (ng != null)
+                    {
+                        delaysForm.audioDelay = ng.AudioDelay;
+                        delaysForm.visualDelay = ng.VisualDelay;
+                        if (delaysForm.ShowDialog() == DialogResult.OK)
+                        {
+                            ng.AudioDelay = delaysForm.audioDelay;
+                            ng.VisualDelay = delaysForm.visualDelay;
+                        }
+                    }
+                }
+                if (clickedZoneNode.Level == NodeLevels.Zone)
                 {
                     delaysForm.Text = "Zone Note Alert Delays";
                     Zone zone = clickedZoneNode.Tag as Zone;
@@ -1841,7 +2237,7 @@ namespace ACT_Notes
                         }
                     }
                 }
-                else if (clickedZoneNode.Level == 1)
+                else if (clickedZoneNode.Level == NodeLevels.Mob)
                 {
                     delaysForm.Text = "Mob Note Alert Delays";
                     Mob mob = clickedZoneNode.Tag as Mob;
@@ -1953,10 +2349,13 @@ namespace ACT_Notes
                 if (zone.Notes != null && !foundZoneNeedMobs)
                 {
                     // search in the zone note
-                    TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, true);
-                    if(nodes.Length > 0)
+                    //TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, true);
+                    //if(nodes.Length > 0)
+                    TreeNode node = FindZoneNode(zone.ZoneName);
+                    if(node != null)
                     {
-                        found = FindInNote(nodes[0], searchText, zone.Notes);
+                        //found = FindInNote(nodes[0], searchText, zone.Notes);
+                        found = FindInNote(node, searchText, zone.Notes);
                         if (found)
                         {
                             foundZoneNeedMobs = true;
@@ -1967,14 +2366,17 @@ namespace ACT_Notes
                 if (!found && zone.Mobs.Count > 0)
                 {
                     // search in this zone's mob notes
-                    TreeNode[] parent = treeViewZones.Nodes.Find(zone.ZoneName, true);
-                    if(parent.Length > 0)
+                    //TreeNode[] parent = treeViewZones.Nodes.Find(zone.ZoneName, true);
+                    //if(parent.Length > 0)
+                    TreeNode parent = FindZoneNode(zone.ZoneName);
+                    if(parent != null)
                     {
                         for (; foundMobIndex < zone.Mobs.Count; foundMobIndex++)
                         {
                             Mob mob = zone.Mobs[foundMobIndex];
-                            TreeNode[] nodes = parent[0].Nodes.Find(mob.MobName, true);
-                            if(nodes.Length > 0)
+                            //TreeNode[] nodes = parent[0].Nodes.Find(mob.MobName, true);
+                            TreeNode[] nodes = parent.Nodes.Find(mob.MobName, true);
+                            if (nodes.Length > 0)
                             {
                                 found = FindInNote(nodes[0], searchText, mob.Notes);
                                 if (found)
@@ -2124,7 +2526,19 @@ namespace ACT_Notes
                 UnHighlightFound();
 
                 Zone zone = null;
-                if (node.Level == 0)
+                NoteGroup noteGroup = null;
+                if(node.Level == NodeLevels.Group)
+                {
+                    noteGroup = zoneList.NoteGroups[node.Text];
+                    if(noteGroup != null)
+                    {
+                        if (richEditCtrl1.rtbDoc.Text.Length > 0)
+                            noteGroup.Notes = richEditCtrl1.rtbDoc.Rtf;
+                        else
+                            noteGroup.Notes = null;
+                    }
+                }
+                else if (node.Level == NodeLevels.Zone)
                 {
                     // zone note
                     string zoneName = node.Text;
@@ -2156,9 +2570,12 @@ namespace ACT_Notes
                     }
                 }
 
-                if(zone != null)
+                if(zone != null || noteGroup != null)
                 {
-                    zone.Paste = GetPasteButton();
+                    if(zone != null)
+                        zone.Paste = GetPasteButton();
+                    if (noteGroup != null)
+                        noteGroup.Paste = GetPasteButton();
                     if (saveToDisk)
                         SaveSettings();
                 }

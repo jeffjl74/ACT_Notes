@@ -36,6 +36,7 @@ namespace ACT_Notes
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.treeViewZones = new System.Windows.Forms.TreeView();
             this.panel4 = new System.Windows.Forms.Panel();
+            this.buttonAddGroup = new System.Windows.Forms.Button();
             this.buttonAddZone = new System.Windows.Forms.Button();
             this.buttonAddMob = new System.Windows.Forms.Button();
             this.panel3 = new System.Windows.Forms.Panel();
@@ -58,6 +59,7 @@ namespace ACT_Notes
             this.copyEntireZoneToXMLToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
+            this.skipKillCheckToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.setAlertDelaysToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.deleteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -66,7 +68,6 @@ namespace ACT_Notes
             this.linkLabel1 = new System.Windows.Forms.LinkLabel();
             this.label2 = new System.Windows.Forms.Label();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
-            this.skipKillCheckToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.textBoxZoneFind = new ACT_Notes.TextBoxX();
             this.richEditCtrl1 = new ACT_Notes.EditCtrl();
             this.textBoxEditFind = new ACT_Notes.TextBoxX();
@@ -100,7 +101,7 @@ namespace ACT_Notes
             this.splitContainer1.Panel2.Controls.Add(this.panel5);
             this.splitContainer1.Panel2.Controls.Add(this.panel2);
             this.splitContainer1.Size = new System.Drawing.Size(727, 560);
-            this.splitContainer1.SplitterDistance = 240;
+            this.splitContainer1.SplitterDistance = 250;
             this.splitContainer1.TabIndex = 0;
             // 
             // treeViewZones
@@ -112,32 +113,46 @@ namespace ACT_Notes
             this.treeViewZones.LabelEdit = true;
             this.treeViewZones.Location = new System.Drawing.Point(0, 30);
             this.treeViewZones.Name = "treeViewZones";
-            this.treeViewZones.Size = new System.Drawing.Size(240, 494);
+            this.treeViewZones.Size = new System.Drawing.Size(250, 494);
             this.treeViewZones.TabIndex = 1;
             this.treeViewZones.AfterLabelEdit += new System.Windows.Forms.NodeLabelEditEventHandler(this.treeViewZones_AfterLabelEdit);
+            this.treeViewZones.AfterCollapse += new System.Windows.Forms.TreeViewEventHandler(this.treeViewZones_AfterCollapse);
+            this.treeViewZones.AfterExpand += new System.Windows.Forms.TreeViewEventHandler(this.treeViewZones_AfterExpand);
             this.treeViewZones.DrawNode += new System.Windows.Forms.DrawTreeNodeEventHandler(this.treeViewZones_DrawNode);
             this.treeViewZones.ItemDrag += new System.Windows.Forms.ItemDragEventHandler(this.treeViewZones_ItemDrag);
             this.treeViewZones.BeforeSelect += new System.Windows.Forms.TreeViewCancelEventHandler(this.treeViewZones_BeforeSelect);
             this.treeViewZones.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeViewZones_AfterSelect);
             this.treeViewZones.DragDrop += new System.Windows.Forms.DragEventHandler(this.treeViewZones_DragDrop);
             this.treeViewZones.DragEnter += new System.Windows.Forms.DragEventHandler(this.treeViewZones_DragEnter);
+            this.treeViewZones.DragOver += new System.Windows.Forms.DragEventHandler(this.treeViewZones_DragOver);
             this.treeViewZones.KeyDown += new System.Windows.Forms.KeyEventHandler(this.treeViewZones_KeyDown);
             this.treeViewZones.MouseDown += new System.Windows.Forms.MouseEventHandler(this.treeViewZones_MouseDown);
             // 
             // panel4
             // 
             this.panel4.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.panel4.Controls.Add(this.buttonAddGroup);
             this.panel4.Controls.Add(this.buttonAddZone);
             this.panel4.Controls.Add(this.buttonAddMob);
             this.panel4.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panel4.Location = new System.Drawing.Point(0, 524);
             this.panel4.Name = "panel4";
-            this.panel4.Size = new System.Drawing.Size(240, 36);
+            this.panel4.Size = new System.Drawing.Size(250, 36);
             this.panel4.TabIndex = 2;
+            // 
+            // buttonAddGroup
+            // 
+            this.buttonAddGroup.Location = new System.Drawing.Point(4, 7);
+            this.buttonAddGroup.Name = "buttonAddGroup";
+            this.buttonAddGroup.Size = new System.Drawing.Size(75, 23);
+            this.buttonAddGroup.TabIndex = 2;
+            this.buttonAddGroup.Text = "Add Group";
+            this.buttonAddGroup.UseVisualStyleBackColor = true;
+            this.buttonAddGroup.Click += new System.EventHandler(this.buttonAddGroup_Click);
             // 
             // buttonAddZone
             // 
-            this.buttonAddZone.Location = new System.Drawing.Point(3, 7);
+            this.buttonAddZone.Location = new System.Drawing.Point(84, 7);
             this.buttonAddZone.Name = "buttonAddZone";
             this.buttonAddZone.Size = new System.Drawing.Size(75, 23);
             this.buttonAddZone.TabIndex = 0;
@@ -147,7 +162,7 @@ namespace ACT_Notes
             // 
             // buttonAddMob
             // 
-            this.buttonAddMob.Location = new System.Drawing.Point(84, 7);
+            this.buttonAddMob.Location = new System.Drawing.Point(165, 7);
             this.buttonAddMob.Name = "buttonAddMob";
             this.buttonAddMob.Size = new System.Drawing.Size(75, 23);
             this.buttonAddMob.TabIndex = 1;
@@ -165,7 +180,7 @@ namespace ACT_Notes
             this.panel3.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel3.Location = new System.Drawing.Point(0, 0);
             this.panel3.Name = "panel3";
-            this.panel3.Size = new System.Drawing.Size(240, 30);
+            this.panel3.Size = new System.Drawing.Size(250, 30);
             this.panel3.TabIndex = 0;
             // 
             // label3
@@ -182,7 +197,7 @@ namespace ACT_Notes
             this.buttonZoneFindNext.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.buttonZoneFindNext.Enabled = false;
             this.buttonZoneFindNext.Font = new System.Drawing.Font("Webdings", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(2)));
-            this.buttonZoneFindNext.Location = new System.Drawing.Point(195, 2);
+            this.buttonZoneFindNext.Location = new System.Drawing.Point(205, 2);
             this.buttonZoneFindNext.Name = "buttonZoneFindNext";
             this.buttonZoneFindNext.Size = new System.Drawing.Size(38, 23);
             this.buttonZoneFindNext.TabIndex = 2;
@@ -204,7 +219,7 @@ namespace ACT_Notes
             this.panel5.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panel5.Location = new System.Drawing.Point(0, 524);
             this.panel5.Name = "panel5";
-            this.panel5.Size = new System.Drawing.Size(483, 36);
+            this.panel5.Size = new System.Drawing.Size(473, 36);
             this.panel5.TabIndex = 2;
             // 
             // radioButtonAccept
@@ -290,14 +305,14 @@ namespace ACT_Notes
             this.panel2.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel2.Location = new System.Drawing.Point(0, 0);
             this.panel2.Name = "panel2";
-            this.panel2.Size = new System.Drawing.Size(483, 30);
+            this.panel2.Size = new System.Drawing.Size(473, 30);
             this.panel2.TabIndex = 0;
             // 
             // checkBoxCurrentCategory
             // 
             this.checkBoxCurrentCategory.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.checkBoxCurrentCategory.AutoSize = true;
-            this.checkBoxCurrentCategory.Location = new System.Drawing.Point(372, 7);
+            this.checkBoxCurrentCategory.Location = new System.Drawing.Point(362, 7);
             this.checkBoxCurrentCategory.Name = "checkBoxCurrentCategory";
             this.checkBoxCurrentCategory.Size = new System.Drawing.Size(59, 17);
             this.checkBoxCurrentCategory.TabIndex = 2;
@@ -320,7 +335,7 @@ namespace ACT_Notes
             this.buttonFindNext.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.buttonFindNext.Enabled = false;
             this.buttonFindNext.Font = new System.Drawing.Font("Webdings", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(2)));
-            this.buttonFindNext.Location = new System.Drawing.Point(437, 2);
+            this.buttonFindNext.Location = new System.Drawing.Point(427, 2);
             this.buttonFindNext.Name = "buttonFindNext";
             this.buttonFindNext.Size = new System.Drawing.Size(38, 23);
             this.buttonFindNext.TabIndex = 3;
@@ -345,7 +360,7 @@ namespace ACT_Notes
             this.toolStripSeparator2,
             this.deleteToolStripMenuItem});
             this.contextMenuStripZone.Name = "contextMenuStrip2";
-            this.contextMenuStripZone.Size = new System.Drawing.Size(216, 170);
+            this.contextMenuStripZone.Size = new System.Drawing.Size(216, 148);
             this.contextMenuStripZone.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStripZone_Opening);
             // 
             // copyToXMLToolStripMenuItem
@@ -375,6 +390,13 @@ namespace ACT_Notes
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
             this.toolStripSeparator1.Size = new System.Drawing.Size(212, 6);
+            // 
+            // skipKillCheckToolStripMenuItem
+            // 
+            this.skipKillCheckToolStripMenuItem.Name = "skipKillCheckToolStripMenuItem";
+            this.skipKillCheckToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
+            this.skipKillCheckToolStripMenuItem.Text = "Skip Kill Check";
+            this.skipKillCheckToolStripMenuItem.Click += new System.EventHandler(this.skipKillCheckToolStripMenuItem_Click);
             // 
             // setAlertDelaysToolStripMenuItem
             // 
@@ -445,13 +467,6 @@ namespace ACT_Notes
             this.saveFileDialog1.DefaultExt = "rtf";
             this.saveFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
             // 
-            // skipKillCheckToolStripMenuItem
-            // 
-            this.skipKillCheckToolStripMenuItem.Name = "skipKillCheckToolStripMenuItem";
-            this.skipKillCheckToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
-            this.skipKillCheckToolStripMenuItem.Text = "Skip Kill Check";
-            this.skipKillCheckToolStripMenuItem.Click += new System.EventHandler(this.skipKillCheckToolStripMenuItem_Click);
-            // 
             // textBoxZoneFind
             // 
             this.textBoxZoneFind.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
@@ -459,7 +474,7 @@ namespace ACT_Notes
             this.textBoxZoneFind.ButtonTextClear = true;
             this.textBoxZoneFind.Location = new System.Drawing.Point(40, 4);
             this.textBoxZoneFind.Name = "textBoxZoneFind";
-            this.textBoxZoneFind.Size = new System.Drawing.Size(148, 20);
+            this.textBoxZoneFind.Size = new System.Drawing.Size(158, 20);
             this.textBoxZoneFind.TabIndex = 1;
             this.toolTip1.SetToolTip(this.textBoxZoneFind, "Incremental search in the category name");
             this.textBoxZoneFind.TextChanged += new System.EventHandler(this.textBoxZoneFind_TextChanged);
@@ -470,7 +485,7 @@ namespace ACT_Notes
             this.richEditCtrl1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.richEditCtrl1.Location = new System.Drawing.Point(0, 30);
             this.richEditCtrl1.Name = "richEditCtrl1";
-            this.richEditCtrl1.Size = new System.Drawing.Size(483, 494);
+            this.richEditCtrl1.Size = new System.Drawing.Size(473, 494);
             this.richEditCtrl1.TabIndex = 1;
             // 
             // textBoxEditFind
@@ -480,7 +495,7 @@ namespace ACT_Notes
             this.textBoxEditFind.ButtonTextClear = true;
             this.textBoxEditFind.Location = new System.Drawing.Point(40, 4);
             this.textBoxEditFind.Name = "textBoxEditFind";
-            this.textBoxEditFind.Size = new System.Drawing.Size(326, 20);
+            this.textBoxEditFind.Size = new System.Drawing.Size(316, 20);
             this.textBoxEditFind.TabIndex = 1;
             this.toolTip1.SetToolTip(this.textBoxEditFind, "Incremental search for text in the trigger\'s regular expression, alert, or timer " +
         "name");
@@ -556,5 +571,6 @@ namespace ACT_Notes
         private ToolStripSeparator toolStripSeparator2;
         private ToolStripMenuItem copyEntireZoneToXMLToolStripMenuItem;
         private ToolStripMenuItem skipKillCheckToolStripMenuItem;
+        private Button buttonAddGroup;
     }
 }

@@ -33,16 +33,15 @@ namespace ACT_Notes
 
         class AlertLabel : Label
         {
-            public AlertLabel(AlertForm form, int posn, string text)
+            public AlertLabel(AlertForm form, string text, bool isFirst)
             {
-                if (posn == 0)
+                if (isFirst)
                 {
                     this.Font = new Font(this.Font.Name, this.Font.SizeInPoints, FontStyle.Underline);
                 }
                 this.Text = text;
-                //this.BorderStyle = BorderStyle.FixedSingle;
                 this.AutoSize = true;
-                this.Location = new Point(5, posn * form.labelHeight);
+                this.Location = new Point(5, form.labelHeight);
                 this.Anchor = AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Left;
                 this.MouseDown += form.AlertForm_MouseDown;
                 this.MouseUp += form.AlertForm_MouseUp;
@@ -76,14 +75,16 @@ namespace ACT_Notes
         {
             if (Alerts.Count > 0)
             {
+                labelHeight = 0;
                 for (int i = 0; i < Alerts.Count; i++)
                 {
-                    AlertLabel alertLabel = new AlertLabel(this, i, Alerts[i]);
+                    AlertLabel alertLabel = new AlertLabel(this, Alerts[i], i==0);
                     this.Controls.Add(alertLabel);
-                    // Label height is adjusted after the control is added to the form.
-                    labelHeight = alertLabel.Height;
+                    // with autosize set, the height is adjusted when the control is added to the form
+                    // so grab it now
+                    labelHeight += alertLabel.Height;
                 }
-                this.Height = (Alerts.Count * labelHeight) + (this.Height - this.ClientRectangle.Height);
+                this.Height = labelHeight + (this.Height - this.ClientRectangle.Height);
                 timer.Interval = 1000;
                 timer.SynchronizingObject = this;
                 timerTicks = 0;

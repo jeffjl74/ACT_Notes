@@ -66,7 +66,7 @@ namespace ACT_Notes
             this.buttonCopy.Name = "buttonCopy";
             this.buttonCopy.Size = new System.Drawing.Size(75, 23);
             this.buttonCopy.TabIndex = 5;
-            this.buttonCopy.Text = "Copy";
+            this.buttonCopy.Text = "&Copy";
             this.toolTip1.SetToolTip(this.buttonCopy, "Press to copy the selected XML chunk to the clipboard");
             this.buttonCopy.UseVisualStyleBackColor = true;
             this.buttonCopy.Click += new System.EventHandler(this.buttonCopy_Click);
@@ -78,7 +78,7 @@ namespace ACT_Notes
             this.buttonDone.Name = "buttonDone";
             this.buttonDone.Size = new System.Drawing.Size(75, 23);
             this.buttonDone.TabIndex = 6;
-            this.buttonDone.Text = "Done";
+            this.buttonDone.Text = "&Done";
             this.buttonDone.UseVisualStyleBackColor = true;
             this.buttonDone.Click += new System.EventHandler(this.buttonDone_Click);
             // 
@@ -131,7 +131,7 @@ namespace ACT_Notes
             this.buttonMacro.Name = "buttonMacro";
             this.buttonMacro.Size = new System.Drawing.Size(75, 23);
             this.buttonMacro.TabIndex = 8;
-            this.buttonMacro.Text = "Macro";
+            this.buttonMacro.Text = "&Macro";
             this.toolTip1.SetToolTip(this.buttonMacro, "Create note-macroX.txt file(s)");
             this.buttonMacro.UseVisualStyleBackColor = true;
             this.buttonMacro.Click += new System.EventHandler(this.buttonMacro_Click);
