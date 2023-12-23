@@ -34,8 +34,6 @@ namespace ACT_Notes
             this.tbrSave = new System.Windows.Forms.ToolStripButton();
             this.ToolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.tbrFont = new System.Windows.Forms.ToolStripButton();
-            this.colorStripDropDownFontColor = new ACT_Notes.ColorToolStripDropDownButton();
-            this.toolDropDownButtonBackground = new ACT_Notes.ColorToolStripDropDownButton();
             this.ToolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
             this.tbrLeft = new System.Windows.Forms.ToolStripButton();
             this.tbrCenter = new System.Windows.Forms.ToolStripButton();
@@ -56,7 +54,10 @@ namespace ACT_Notes
             this.ToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
             this.tbrImage = new System.Windows.Forms.ToolStripButton();
             this.OpenFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.tbrNumbered = new System.Windows.Forms.ToolStripButton();
             this.rtbDoc = new ACT_Notes.RichTextBoxEx();
+            this.colorStripDropDownFontColor = new ACT_Notes.ColorToolStripDropDownButton();
+            this.toolDropDownButtonBackground = new ACT_Notes.ColorToolStripDropDownButton();
             this.ToolStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -74,6 +75,7 @@ namespace ACT_Notes
             this.tbrRight,
             this.ToolStripSeparator2,
             this.tbrBullets,
+            this.tbrNumbered,
             this.tbrIndent,
             this.tbrOutdent,
             this.toolStripSeparator7,
@@ -121,33 +123,6 @@ namespace ACT_Notes
             this.tbrFont.Text = "A";
             this.tbrFont.ToolTipText = "Font";
             this.tbrFont.Click += new System.EventHandler(this.SelectFontToolStripMenuItem_Click);
-            // 
-            // colorStripDropDownFontColor
-            // 
-            this.colorStripDropDownFontColor.DefaultPalette = ACT_Notes.Palette.Saturated;
-            this.colorStripDropDownFontColor.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
-            this.colorStripDropDownFontColor.Font = new System.Drawing.Font("Arial Rounded MT Bold", 9.75F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.colorStripDropDownFontColor.ForeColor = System.Drawing.Color.CornflowerBlue;
-            this.colorStripDropDownFontColor.Image = ((System.Drawing.Image)(resources.GetObject("colorStripDropDownFontColor.Image")));
-            this.colorStripDropDownFontColor.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.colorStripDropDownFontColor.Name = "colorStripDropDownFontColor";
-            this.colorStripDropDownFontColor.Size = new System.Drawing.Size(29, 22);
-            this.colorStripDropDownFontColor.Text = "A";
-            this.colorStripDropDownFontColor.ToolTipText = "Font Color";
-            this.colorStripDropDownFontColor.Value = System.Drawing.Color.Black;
-            this.colorStripDropDownFontColor.Click += new ACT_Notes.ColorToolStripDropDownButton.ColorPaletteEventHandler(this.colorStripDropDownFontColor_Click);
-            // 
-            // toolDropDownButtonBackground
-            // 
-            this.toolDropDownButtonBackground.DefaultPalette = ACT_Notes.Palette.Highlights;
-            this.toolDropDownButtonBackground.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.toolDropDownButtonBackground.Image = ((System.Drawing.Image)(resources.GetObject("toolDropDownButtonBackground.Image")));
-            this.toolDropDownButtonBackground.ImageTransparentColor = System.Drawing.Color.Magenta;
-            this.toolDropDownButtonBackground.Name = "toolDropDownButtonBackground";
-            this.toolDropDownButtonBackground.Size = new System.Drawing.Size(29, 22);
-            this.toolDropDownButtonBackground.Text = "Background Color";
-            this.toolDropDownButtonBackground.Value = System.Drawing.Color.White;
-            this.toolDropDownButtonBackground.Click += new ACT_Notes.ColorToolStripDropDownButton.ColorPaletteEventHandler(this.toolDropDownButtonBackground_Click);
             // 
             // ToolStripSeparator4
             // 
@@ -326,6 +301,17 @@ namespace ACT_Notes
             // 
             this.OpenFileDialog1.FileName = "OpenFileDialog1";
             // 
+            // tbrNumbered
+            // 
+            this.tbrNumbered.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.tbrNumbered.Image = ((System.Drawing.Image)(resources.GetObject("tbrNumbered.Image")));
+            this.tbrNumbered.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.tbrNumbered.Name = "tbrNumbered";
+            this.tbrNumbered.Size = new System.Drawing.Size(23, 22);
+            this.tbrNumbered.Text = "Numbered";
+            this.tbrNumbered.ToolTipText = "Numbered List";
+            this.tbrNumbered.Click += new System.EventHandler(this.tbrNumbered_Click);
+            // 
             // rtbDoc
             // 
             this.rtbDoc.AcceptsTab = true;
@@ -340,6 +326,33 @@ namespace ACT_Notes
             this.rtbDoc.LinkClicked += new System.Windows.Forms.LinkClickedEventHandler(this.rtbDoc_LinkClicked);
             this.rtbDoc.SelectionChanged += new System.EventHandler(this.rtbDoc_SelectionChanged);
             this.rtbDoc.KeyDown += new System.Windows.Forms.KeyEventHandler(this.rtbDoc_KeyDown);
+            // 
+            // colorStripDropDownFontColor
+            // 
+            this.colorStripDropDownFontColor.DefaultPalette = ACT_Notes.Palette.Saturated;
+            this.colorStripDropDownFontColor.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
+            this.colorStripDropDownFontColor.Font = new System.Drawing.Font("Arial Rounded MT Bold", 9.75F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.colorStripDropDownFontColor.ForeColor = System.Drawing.Color.CornflowerBlue;
+            this.colorStripDropDownFontColor.Image = ((System.Drawing.Image)(resources.GetObject("colorStripDropDownFontColor.Image")));
+            this.colorStripDropDownFontColor.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.colorStripDropDownFontColor.Name = "colorStripDropDownFontColor";
+            this.colorStripDropDownFontColor.Size = new System.Drawing.Size(29, 22);
+            this.colorStripDropDownFontColor.Text = "A";
+            this.colorStripDropDownFontColor.ToolTipText = "Font Color";
+            this.colorStripDropDownFontColor.Value = System.Drawing.Color.Black;
+            this.colorStripDropDownFontColor.Click += new ACT_Notes.ColorToolStripDropDownButton.ColorPaletteEventHandler(this.colorStripDropDownFontColor_Click);
+            // 
+            // toolDropDownButtonBackground
+            // 
+            this.toolDropDownButtonBackground.DefaultPalette = ACT_Notes.Palette.Highlights;
+            this.toolDropDownButtonBackground.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolDropDownButtonBackground.Image = ((System.Drawing.Image)(resources.GetObject("toolDropDownButtonBackground.Image")));
+            this.toolDropDownButtonBackground.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolDropDownButtonBackground.Name = "toolDropDownButtonBackground";
+            this.toolDropDownButtonBackground.Size = new System.Drawing.Size(29, 22);
+            this.toolDropDownButtonBackground.Text = "Background Color";
+            this.toolDropDownButtonBackground.Value = System.Drawing.Color.White;
+            this.toolDropDownButtonBackground.Click += new ACT_Notes.ColorToolStripDropDownButton.ColorPaletteEventHandler(this.toolDropDownButtonBackground_Click);
             // 
             // EditCtrl
             // 
@@ -384,5 +397,6 @@ namespace ACT_Notes
         private System.Windows.Forms.ToolStripButton tbrPopup;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator5;
         private System.Windows.Forms.ToolStripButton tbrAudioVisual;
+        private System.Windows.Forms.ToolStripButton tbrNumbered;
     }
 }

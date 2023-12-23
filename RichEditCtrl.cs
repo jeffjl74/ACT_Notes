@@ -3,14 +3,11 @@ using System;
 using System.Drawing;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-
-
 namespace ACT_Notes
 {
 
     public partial class EditCtrl : UserControl
     {
-
         // constructor
         public EditCtrl()
         {
@@ -210,19 +207,32 @@ namespace ACT_Notes
             rtbDoc.BulletIndent = 10;
             rtbDoc.SelectionBullet = !rtbDoc.SelectionBullet;
             tbrBullets.Checked = rtbDoc.SelectionBullet;
+            tbrNumbered.Checked = rtbDoc.SelectionNumbered; // in case we toggled between bullet & number
+        }
+
+        private void tbrNumbered_Click(object sender, EventArgs e)
+        {
+            rtbDoc.SelectionNumbered = !rtbDoc.SelectionNumbered;
+            tbrNumbered.Checked = rtbDoc.SelectionNumbered;
+            tbrBullets.Checked = rtbDoc.SelectionBullet; // in case we toggled between bullet & number
         }
 
         private void tbrIndent_Click(object sender, EventArgs e)
         {
-            rtbDoc.SelectionIndent += 15;
+            rtbDoc.SelectionIndent += rtbDoc.IndentTwips;
+            if (rtbDoc.SelectionNumbered)
+                rtbDoc.EnableListing();
         }
 
         private void tbrOutdent_Click(object sender, EventArgs e)
         {
-            if (rtbDoc.SelectionIndent >= 15)
-                rtbDoc.SelectionIndent -= 15;
+            if (rtbDoc.SelectionIndent >= rtbDoc.IndentTwips)
+                rtbDoc.SelectionIndent -= rtbDoc.IndentTwips;
             else
                 rtbDoc.SelectionIndent = 0;
+
+            if (rtbDoc.SelectionNumbered)
+                rtbDoc.EnableListing();
         }
 
         private void colorStripDropDownFontColor_Click(object sender, ColorPickerEventArgs e)
@@ -349,6 +359,7 @@ namespace ACT_Notes
                 colorStripDropDownFontColor.Value = rtbDoc.SelectionColor;
             }
             tbrBullets.Checked = rtbDoc.SelectionBullet;
+            tbrNumbered.Checked = rtbDoc.SelectionNumbered;
             tbrSpeaker.Checked = rtbDoc.SelectionColor == audioAlertColor;
             tbrPopup.Checked = rtbDoc.SelectionColor == visualAlertColor;
             tbrAudioVisual.Checked = rtbDoc.SelectionColor == audioVisualAlertColor;
