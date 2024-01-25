@@ -57,5 +57,10 @@ namespace ACT_Notes
         {
             return this.ZoneName.CompareTo(other.ZoneName);
         }
+
+        public Mob GetMob(string name)
+        {
+            return Mobs.FirstOrDefault(t => t.MobName == name);
+        }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -8,7 +8,8 @@ using System.Windows.Forms;
 namespace ACT_Notes
 {
     /// <summary>
-    /// RichTextBox extension that provides methods to stop and resume painting the text.
+    /// RichTextBox extension that provides methods to stop and resume painting the text
+    /// and numbered lists.
     /// </summary>
     public class RichTextBoxEx : RichTextBox
     {
@@ -38,7 +39,7 @@ namespace ACT_Notes
         const int EM_SETPARAFORMAT = WM_USER + 71;
         const int EM_GETPARAFORMAT = WM_USER + 61;
 
-        int _indentTwips = 15;
+        int _indentPixels = 15;
 
         [DllImport("User32.dll")]
         public static extern int SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
@@ -91,6 +92,11 @@ namespace ACT_Notes
             public ushort wBorderSpace;
             public ushort wBorderWidth;
             public ushort wBorders;
+
+            public PARAFORMAT2()
+            {
+                this.cbSize = (uint)Marshal.SizeOf(typeof(PARAFORMAT2));
+            }
         };
 
         public class RichTextBoxInfo
@@ -98,7 +104,13 @@ namespace ACT_Notes
             public bool IsListingEnabled { get; set; }
             public RichEditNumberingOption NumberingOption { get; set; }
             public RichEditNumberingStyle NumberingStyle { get; set; }
-            public int IntendInTwips { get; set; }
+            public int IndentInTwips { get; set; }
+
+            // for debug
+            public override string ToString()
+            {
+                return $"Numbered:{IsListingEnabled}; Numbering:{NumberingOption}; Style:{NumberingStyle}; Indent:{IndentInTwips}";
+            }
         }
 
         internal class RichEdit
@@ -118,11 +130,226 @@ namespace ACT_Notes
             public const int PFN_ARABIC = 2;
 
             // Numbering styles.
-
             public const int PFNS_PERIOD = 0x200;
 
             // Styles.
             public const int PFNS_NEWNUMBER = 0x00008000;
+        }
+
+        /// <summary>
+        /// Property similar to SelectionBullet except it sets/resets the numbered list.
+        /// </summary>
+        [Description("Numbered List"), Category("Behavior")]
+        public bool SelectionNumbered {
+            get {
+                return GetListingInfo().IsListingEnabled;
+            }
+
+            set { 
+                if (value)
+                    EnableListing();
+                else
+                    DisableListing();
+            } 
+        }
+
+        /// <summary>
+        /// The numbered list changes format based on indentation using this step size.
+        /// </summary>
+        [Description("Numbered List Indent"), Category("Behavior")]
+        public int IndentPixels { get { return _indentPixels; } set { _indentPixels = value; } }
+
+
+        /// <summary>
+        /// Enables numbering listing mode.
+        /// </summary>
+        public void EnableListing()
+        {
+            RichEditNumberingOption option = RichEditNumberingOption.Arabic;
+            RichEditNumberingStyle style = RichEditNumberingStyle.Period;
+            Dictionary<int, int> levels = new Dictionary<int, int>();
+
+            // resume numbering if this is a continuation of a previous indent level
+            int thisPar = SelectionStart;
+            int itemLevel = SelectionIndent / _indentPixels;
+            int searchLevel;
+            ushort startNum = 1;
+            // if at level 0, find the start of the list
+            // if at any indent level, find the parent level (i.e. count peers of the item level)
+            do
+            {
+                MoveToPreviousParagraph();
+                searchLevel = SelectionIndent / _indentPixels;
+            } while (SelectionNumbered && SelectionStart > 0 && ((searchLevel >= itemLevel) || (itemLevel == 0)));
+            // count occurrances of each indent level between our 1st peer and us
+            while (SelectionNumbered && SelectionStart < thisPar && SelectionStart < this.Text.Length)
+            {
+                int level = SelectionIndent / _indentPixels;
+                if(levels.ContainsKey(level))
+                    levels[level]++;
+                else
+                    levels[level] = 1;
+                MoveToNextParagraph();
+            }
+            SelectionStart = thisPar; //restore starting position
+            // set the starting number for this indentation level
+            if (levels.Count > 0)
+            {
+                try
+                {
+                    startNum = (ushort)levels[itemLevel];
+                    if (itemLevel == 0)
+                        startNum++; //this item was not counted at level 0 b/c SelectionNumbered is not set for it yet
+                }
+                catch { } //just default to starting at 1 on unexpected results
+            }
+
+            switch ((SelectionIndent / _indentPixels) % 5)
+            {
+                case 0:
+                    option = RichEditNumberingOption.Arabic;
+                    style = RichEditNumberingStyle.Period;
+                    break;
+                case 1:
+                    option = RichEditNumberingOption.UppercaseLetters;
+                    style = RichEditNumberingStyle.ParanthesesRight;
+                    break;
+                case 2:
+                    option = RichEditNumberingOption.UppercaseRoman;
+                    style = RichEditNumberingStyle.Period;
+                    break;
+                case 3:
+                    option = RichEditNumberingOption.LowercaseLetters;
+                    style = RichEditNumberingStyle.ParanthesesRight;
+                    break;
+                case 4:
+                    option = RichEditNumberingOption.LowercaseRoman;
+                    style = RichEditNumberingStyle.Period;
+                    break;
+            }
+
+            PARAFORMAT2 pfm = new PARAFORMAT2()
+            {
+                dwMask = RichEdit.PFM_NUMBERINGSTYLE | RichEdit.PFM_NUMBERING | RichEdit.PFM_NUMBERINGSTART | RichEdit.PFM_OFFSET,
+                wNumberingStart = startNum,
+                wNumbering = (ushort)option,
+                wNumberingStyle = (ushort)style,
+                dxOffset = BulletIndent,
+            };
+
+            SendParagraphFormatMessage(EM_SETPARAFORMAT, pfm, out _);
+        }
+
+        /// <summary>
+        /// Disables numbering listing mode.
+        /// </summary>
+        public void DisableListing()
+        {
+            PARAFORMAT2 pfm = new PARAFORMAT2()
+            {
+                dwMask = RichEdit.PFM_NUMBERINGSTYLE | RichEdit.PFM_NUMBERINGSTART | RichEdit.PFM_NUMBERING,
+                wNumberingStart = 1,
+                wNumbering = 0,
+                wNumberingStyle = 0,
+            };
+
+            SendParagraphFormatMessage(EM_SETPARAFORMAT, pfm, out _);
+        }
+
+        /// <summary>
+        /// Retrieves listing information about the current selection.
+        /// </summary>
+        public RichTextBoxInfo GetListingInfo()
+        {
+            PARAFORMAT2 pfm = new PARAFORMAT2();
+
+            SendParagraphFormatMessage(EM_GETPARAFORMAT, pfm, out PARAFORMAT2 outPfm);
+
+            RichTextBoxInfo rtbInfo = new RichTextBoxInfo
+            {
+                IsListingEnabled = outPfm.wNumbering > (ushort)RichEditNumberingOption.Bullet,
+                NumberingOption = (RichEditNumberingOption)outPfm.wNumbering,
+                NumberingStyle = (RichEditNumberingStyle)outPfm.wNumberingStyle,
+                IndentInTwips = outPfm.dxStartIndent
+            };
+
+            //Debug.WriteLine(rtbInfo.ToString());
+
+            return rtbInfo;
+        }
+
+        private void SendParagraphFormatMessage(uint msg, PARAFORMAT2 inPfm, out PARAFORMAT2 outPfm)
+        {
+            int structSize = Marshal.SizeOf(inPfm);
+            IntPtr structPtr = Marshal.AllocCoTaskMem(structSize);
+
+            inPfm.cbSize = (uint)structSize;
+
+            Marshal.StructureToPtr(inPfm, structPtr, false);
+            SendMessage(this.Handle, (uint)msg, IntPtr.Zero, structPtr);
+
+            outPfm = msg == EM_GETPARAFORMAT ? Marshal.PtrToStructure<PARAFORMAT2>(structPtr) : default;
+
+            //Debug.WriteLine("SendParagraphFormatMessage: retuned dwMask {outPfm?.dwMask}");
+            Marshal.FreeCoTaskMem(structPtr);
+        }
+
+        private void MoveToPreviousParagraph()
+        {
+            int currentPosition = SelectionStart;
+            int previousParagraphEnd = -1;
+
+            // Find the start of the previous paragraph
+            if(currentPosition > 1)
+            {
+                if (this.Text[currentPosition - 1] == '\n')
+                {
+                    //cursor is at the start of the line
+                    //start looking just before the \n that is just before the current position
+                    previousParagraphEnd = this.Text.LastIndexOf("\n", currentPosition - 2);
+                }
+                else
+                {
+                    //cursor is in the middle of a line
+                    //go to the "start" of that paragraph
+                    previousParagraphEnd = this.Text.LastIndexOf("\n", currentPosition - 1);
+                    if (previousParagraphEnd > 0)
+                    {
+                        //then go to the end of the paragraph before that
+                        previousParagraphEnd = this.Text.LastIndexOf("\n", previousParagraphEnd - 1);
+                    }
+                }
+            }
+
+            // If no previous paragraph is found, set the selection to the beginning
+            if (previousParagraphEnd == -1)
+            {
+                this.Select(0, 0);
+            }
+            else
+            {
+                // Move the selection to the start of the previous paragraph
+                this.Select(previousParagraphEnd + 1, 0);
+            }
+        }
+
+        private void MoveToNextParagraph()
+        {
+            int currentPosition = SelectionStart;
+
+            // Find the start of the next paragraph
+            int nextParagraphStart = this.Text.IndexOf('\n', currentPosition + 1);
+
+            // If no next paragraph is found, set the selection to the beginning
+            if (nextParagraphStart == -1)
+            {
+                this.Select(this.Text.Length, 0);
+            }
+            else
+            {
+                // Move the selection to the start of the next paragraph
+                this.Select(nextParagraphStart + 1, 0);
+            }
         }
 
         #endregion Numbered List support
@@ -152,131 +379,6 @@ namespace ACT_Notes
                 Invalidate();
             }
 
-        }
-
-        /// <summary>
-        /// Property similar to SelectionBullet except it sets/resets the numbered list.
-        /// </summary>
-        [Description("Numbered List"), Category("Behavior")]
-        public bool SelectionNumbered {
-            get {
-                RichTextBoxInfo info = GetListingInfo();
-                return info.IsListingEnabled;
-            }
-
-            set { 
-                if (value)
-                    EnableListing();
-                else
-                    DisableListing();
-            } 
-        }
-
-        /// <summary>
-        /// The numbered list changes format based on indentation using this step size.
-        /// </summary>
-        [Description("Numbered List Indent"), Category("Behavior")]
-        public int IndentTwips { get { return _indentTwips; } set { _indentTwips = value; } }
-
-        /// <summary>
-        /// Enables numbering listing mode.
-        /// </summary>
-        /// <param name="option">The kind of numbering (Arabic, Bullet, etc...)</param>
-        /// <param name="style">The style for the numbering (Parantheses, Period, etc...)\</param>
-        /// <param name="indentInTwips">The indentation in twips.</param>
-        public void EnableListing()
-        {
-            RichEditNumberingOption option = RichEditNumberingOption.Arabic;
-            RichEditNumberingStyle style = RichEditNumberingStyle.Period;
-
-            switch ((SelectionIndent / _indentTwips) % 5)
-            {
-                case 0:
-                    option = RichEditNumberingOption.Arabic;
-                    style = RichEditNumberingStyle.Period;
-                    break;
-                case 1:
-                    option = RichEditNumberingOption.UppercaseLetters;
-                    style = RichEditNumberingStyle.ParanthesesRight;
-                    break;
-                case 2:
-                    option = RichEditNumberingOption.LowercaseLetters;
-                    style = RichEditNumberingStyle.ParanthesesRight;
-                    break;
-                case 3:
-                    option = RichEditNumberingOption.UppercaseRoman;
-                    style = RichEditNumberingStyle.Period;
-                    break;
-                case 4:
-                    option = RichEditNumberingOption.LowercaseRoman;
-                    style = RichEditNumberingStyle.Period;
-                    break;
-            }
-
-            PARAFORMAT2 pfm = new PARAFORMAT2()
-            {
-                //dwMask = RichEdit.PFM_STARTINDENT | RichEdit.PFM_NUMBERINGSTYLE | RichEdit.PFM_NUMBERINGSTART | RichEdit.PFM_NUMBERING | RichEdit.PFM_OFFSET,
-                dwMask = RichEdit.PFM_NUMBERINGSTYLE | RichEdit.PFM_NUMBERINGSTART | RichEdit.PFM_NUMBERING | RichEdit.PFM_OFFSET,
-                wNumberingStart = 1,
-                wNumbering = (ushort)option,
-                wNumberingStyle = (ushort)style,
-                //dxStartIndent = SelectionIndent
-            };
-
-            SendParagraphFormatMessage(EM_SETPARAFORMAT, pfm, out _);
-        }
-
-        /// <summary>
-        /// Disables numbering listing mode.
-        /// </summary>
-        public void DisableListing()
-        {
-            PARAFORMAT2 pfm = new PARAFORMAT2()
-            {
-                dwMask = RichEdit.PFM_STARTINDENT | RichEdit.PFM_NUMBERINGSTYLE | RichEdit.PFM_NUMBERINGSTART | RichEdit.PFM_NUMBERING | RichEdit.PFM_OFFSET,
-                wNumberingStart = 1,
-                wNumbering = 0,
-                wNumberingStyle = 0,
-                dxStartIndent = 0
-            };
-
-            SendParagraphFormatMessage(EM_SETPARAFORMAT, pfm, out _);
-        }
-
-        /// <summary>
-        /// Retrieves listing information about the current selection.
-        /// </summary>
-        /// <returns>A RichTextBoxInfo-Instance</returns>
-        public RichTextBoxInfo GetListingInfo()
-        {
-            PARAFORMAT2 pfm = new PARAFORMAT2();
-
-            pfm.cbSize = (uint)Marshal.SizeOf(typeof(PARAFORMAT2));
-            SendParagraphFormatMessage(EM_GETPARAFORMAT, pfm, out PARAFORMAT2 outPfm);
-
-            return new RichTextBoxInfo
-            {
-                IsListingEnabled = outPfm.wNumbering > (ushort)RichEditNumberingOption.Bullet,
-                NumberingOption = (RichEditNumberingOption)outPfm.wNumbering,
-                NumberingStyle = (RichEditNumberingStyle)outPfm.wNumberingStyle,
-                IntendInTwips = outPfm.dxStartIndent
-            };
-        }
-
-        private void SendParagraphFormatMessage(uint msg, PARAFORMAT2 inPfm, out PARAFORMAT2 outPfm)
-        {
-            int structSize = Marshal.SizeOf(inPfm);
-            IntPtr structPtr = Marshal.AllocCoTaskMem(structSize);
-
-            inPfm.cbSize = (uint)structSize;
-
-            Marshal.StructureToPtr(inPfm, structPtr, false);
-            SendMessage(this.Handle, (uint)msg, IntPtr.Zero, structPtr);
-
-            outPfm = msg == EM_GETPARAFORMAT ? Marshal.PtrToStructure<PARAFORMAT2>(structPtr) : default;
-
-            Debug.WriteLine(outPfm?.dwMask);
-            Marshal.FreeCoTaskMem(structPtr);
         }
     }
 

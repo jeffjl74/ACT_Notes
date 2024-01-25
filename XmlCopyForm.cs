@@ -17,7 +17,7 @@ namespace ACT_Notes
         const int maxChatLen = 240;
         const int maxMacroLen = 1000;
         const int encodeLen = 6;
-        string xml = string.Empty;
+        string xmlNote = string.Empty;
         NoteGroup _noteGroup;
         List<Zone> _zones;
         Mob _mob;
@@ -139,9 +139,6 @@ namespace ACT_Notes
         {
             List<string> snippets = new List<string>();
 
-            int baseSize = MobToXML(zone, mob, " ", 10).Length;
-            if (radioButtonCustom.Checked)
-                baseSize += textBoxCustom.Text.Length;
             string noBreaks;
             string orig;
             if (mob != null)
@@ -156,7 +153,6 @@ namespace ACT_Notes
             {
                 // compress the note if it has any image(s)
                 compressed = true;
-                baseSize += " C='T'".Length;
                 MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes(noBreaks));
                 byte[] data = Compress(input);
                 // change it to text
@@ -167,38 +163,81 @@ namespace ACT_Notes
                 }
                 noBreaks = sb.ToString();
             }
+
+            int channelSize = 3;
+            if (radioButtonCustom.Checked)
+                channelSize = textBoxCustom.Text.Length + 2;
+            int sectionSize = SnippetToXml(" ", 99, 99).Length;
+            int overhead = channelSize + sectionSize;
+
             // alter the XML encoding to get past EQII & ACT expectations
-            xml = EncodeShare(noBreaks);
-            if (baseSize + xml.Length < maxLen)
+            xmlNote = EncodeShare(noBreaks);
+
+            string whole = MobToXML(_noteGroup, zone, mob, xmlNote, 1);
+            if (whole.Length + channelSize < maxLen)
             {
-                string whole = MobToXML(zone, mob, xml, 1);
                 snippets.Add(whole);
             }
             else
             {
                 // get the data for the first section
                 nextSectionIndex = 0;
-                string section1 = GetNextSection(maxLen - baseSize);
+                string section1 = GetNextSection(maxLen - overhead);
 
                 // calc number of sections
-                int baseSnippetSize = SnippetToXml(" ", 99, 99).Length;
-                if (radioButtonCustom.Checked)
-                    baseSnippetSize += textBoxCustom.Text.Length;
-                int snippetLen = maxLen - baseSnippetSize;
-                int remainingCount = xml.Length - (maxLen - baseSize);
-                int sectionCount = remainingCount / snippetLen;
-                if (remainingCount % snippetLen != 0)
-                    sectionCount++;
-                sectionCount++; //count the first section
+                int snippetLen = maxLen - overhead;
+                int remainingLength = xmlNote.Length - (maxLen - overhead);
+                int totalSections = remainingLength / snippetLen;
+                if (remainingLength % snippetLen != 0)
+                    totalSections++;
+                totalSections++; //account for the first section
+                int initalDataSectionNum = 2;
 
-                // build the initial snippet with the zone & mob names in it
-                snippets.Add(MobToXML(zone, mob, section1, sectionCount));
+                // build the initial snippet(s) with the zone & mob names in it
+                string s1 = MobToXML(_noteGroup, zone, mob, section1, totalSections);
+                if(s1.Length > maxLen)
+                {
+                    //it's too long
+                    //break out the group, zone, mob, player into a section
+                    if (nextSectionIndex <= xmlNote.Length)
+                        totalSections++;
+                    string names = MobToXML(_noteGroup, zone, mob, "", totalSections);
+                    if (names.Length < maxLen)
+                    {
+                        snippets.Add(names);
+                        initalDataSectionNum = 2;
+                    }
+                    else
+                    {
+                        // still too long, just make a section for each name
+                        totalSections += 2;
+                        string groupSec = MobToXML(_noteGroup, null, null, "", totalSections, 1);
+                        string zoneSec = MobToXML(null, zone, null, "", totalSections, 2);
+                        string mobSec = MobToXML(null, null, mob, "", totalSections, 3);
+                        if(groupSec.Length > maxLen || zoneSec.Length > maxLen || mobSec.Length > maxLen)
+                        {
+                            string groupShort = groupSec.Substring(groupSec.IndexOf("G=") + 2, 8);
+                            string zoneShort = zoneSec.Substring(zoneSec.IndexOf("Z=") + 2, 8);
+                            string mobShort = mobSec.Substring(mobSec.IndexOf("M=") + 2, 8);
+                            snippets.Add($"The group ({groupShort}...), zone ({zoneShort}...), or mob ({mobShort}...)is too long to share.");
+                            return snippets;
+                        }
+                        snippets.Add(groupSec);
+                        snippets.Add(zoneSec);
+                        snippets.Add(mobSec);
+                        initalDataSectionNum = 4;
+                    }
+                    snippets.Add(SnippetToXml(section1, initalDataSectionNum, totalSections));
+                    initalDataSectionNum++;
+                }
+                else
+                    snippets.Add(s1);
 
                 // build the rest of the snippets with just note data
-                for(int j=2; nextSectionIndex<xml.Length; j++)
+                for(int j=initalDataSectionNum; nextSectionIndex<xmlNote.Length; j++)
                 {
                     string section = GetNextSection(snippetLen);
-                    snippets.Add(SnippetToXml(section, j, sectionCount));
+                    snippets.Add(SnippetToXml(section, j, totalSections));
                 }
             }
             return snippets;
@@ -218,32 +257,36 @@ namespace ACT_Notes
         private string GetNextSection(int maxLen)
         {
             StringBuilder sb = new StringBuilder();
-            for(int i=nextSectionIndex, j=0; i<xml.Length && j<maxLen; i++, j++)
+            for(int i=nextSectionIndex, j=0; i<xmlNote.Length && j<maxLen; i++, j++)
             {
-                sb.Append(xml[i]);
+                sb.Append(xmlNote[i]);
             }
             nextSectionIndex += sb.Length;
             return sb.ToString();
         }
 
-        private string MobToXML(Zone zone, Mob mob, string note, int sections)
+        private string MobToXML(NoteGroup noteGroup, Zone zone, Mob mob, string note, int sections, int currentSection = 1)
         {
             string result = string.Empty;
             if (zone != null || _noteGroup != null)
             {
                 StringBuilder sb = new StringBuilder();
                 sb.Append($"<{Notes.XmlSnippetType}");
-                if(zone != null)
+                sb.Append($" S='{currentSection}/{sections}'");
+                if (noteGroup != null)
+                    sb.Append($" G='{EncodeShare(noteGroup.GroupName)}'");
+                if (zone != null)
                     sb.Append($" Z='{EncodeShare(zone.ZoneName)}'");
-                if (_noteGroup != null)
-                    sb.Append($" G='{EncodeShare(_noteGroup.GroupName)}'");
-                sb.Append($" S='1/{sections}'");
                 if (mob != null)
                     sb.Append(string.Format(" M='{0}'", EncodeShare(mob.MobName)));
-                sb.Append(string.Format(" P='{0}'", ActGlobals.charName));
-                if (compressed)
-                    sb.Append(" C='T'");
-                sb.Append(string.Format(" N='{0}'", note));
+                if (currentSection == 1)
+                {
+                    sb.Append(string.Format(" P='{0}'", ActGlobals.charName));
+                    if (compressed)
+                        sb.Append(" C='T'");
+                }
+                if(!string.IsNullOrEmpty(note))
+                    sb.Append(string.Format(" N='{0}'", note));
                 sb.Append(" />");
 
                 result = sb.ToString();
@@ -456,9 +499,6 @@ namespace ACT_Notes
             {
                 chatSnippets = new List<string>();
 
-                if (_depth == Notes.XmlShareDepth.GroupDeep && !string.IsNullOrEmpty(_noteGroup.Notes))
-                    chatSnippets.AddRange(Breakup(null, null, maxChatLen));
-
                 foreach (Zone zone in _zones)
                 {
                     if (zone.Notes != null)
@@ -471,6 +511,9 @@ namespace ACT_Notes
                             chatSnippets.AddRange(Breakup(zone, zone.Mobs[i], maxChatLen));
                     }
                 }
+
+                if (_depth == Notes.XmlShareDepth.GroupDeep && !string.IsNullOrEmpty(_noteGroup.Notes))
+                    chatSnippets.AddRange(Breakup(null, null, maxChatLen));
             }
             else if (_depth == Notes.XmlShareDepth.ZoneOnly && _zones.Count > 0)
                 chatSnippets = Breakup(_zones[0], null, maxChatLen);
@@ -478,8 +521,6 @@ namespace ACT_Notes
                 chatSnippets = Breakup(null, null, maxChatLen);
             else if (_depth == Notes.XmlShareDepth.MobOnly && _zones.Count > 0)
                 chatSnippets = Breakup(_zones[0], _mob, maxChatLen);
-            else
-                return;
 
             preIncremet = false;
             toolTip1.SetToolTip(buttonMacro, "Press to generate and list macro files");
@@ -490,7 +531,10 @@ namespace ACT_Notes
                 listBox1.Items.Add(listItem);
             }
             if (chatSnippets.Count > 0)
+            {
                 listBox1.SelectedIndex = 0;
+                toolStripStatusLabel1.Text = "Press [Copy] to copy the selected line";
+            }
             else
                 toolStripStatusLabel1.Text = string.Empty;
         }
@@ -612,9 +656,6 @@ namespace ACT_Notes
 
             if (_depth == Notes.XmlShareDepth.GroupDeep || _depth == Notes.XmlShareDepth.ZoneDeep)
             {
-                if (_depth == Notes.XmlShareDepth.GroupDeep && !string.IsNullOrEmpty(_noteGroup.Notes))
-                    lines.AddRange(Breakup(null, null, maxChatLen - prefix.Length));
-
                 foreach (Zone zone in _zones)
                 {
                     if (zone.Notes != null)
@@ -627,15 +668,15 @@ namespace ACT_Notes
                             lines.AddRange(Breakup(zone, zone.Mobs[i], maxMacroLen - prefix.Length));
                     }
                 }
+                if (_depth == Notes.XmlShareDepth.GroupDeep && !string.IsNullOrEmpty(_noteGroup.Notes))
+                    lines.AddRange(Breakup(null, null, maxMacroLen - prefix.Length));
             }
             else if (_depth == Notes.XmlShareDepth.ZoneOnly && _zones.Count > 0)
-                lines.AddRange(Breakup(_zones[0], null, maxChatLen));
+                lines.AddRange(Breakup(_zones[0], null, maxMacroLen));
             else if (_depth == Notes.XmlShareDepth.GroupOnly && !string.IsNullOrEmpty(_noteGroup.Notes))
-                lines.AddRange(Breakup(null, null, maxChatLen));
+                lines.AddRange(Breakup(null, null, maxMacroLen));
             else if (_depth == Notes.XmlShareDepth.MobOnly && _zones.Count > 0)
-                lines.AddRange(Breakup(_zones[0], _mob, maxChatLen));
-            else
-                return;
+                lines.AddRange(Breakup(_zones[0], _mob, maxMacroLen));
 
             int fileCount = 1;
             int lineCount = 1;

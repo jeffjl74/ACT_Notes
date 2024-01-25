@@ -57,6 +57,7 @@
       <HintPath>C:\Program Files (x86)\Advanced Combat Tracker\Advanced Combat Tracker.exe</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Microsoft.VisualBasic.Compatibility" />
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Drawing" />
@@ -81,6 +82,12 @@
     </Compile>
     <Compile Include="ColorToolStripDropDownButton.cs">
       <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="CommaNamesForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CommaNamesForm.Designer.cs">
+      <DependentUpon>CommaNamesForm.cs</DependentUpon>
     </Compile>
     <Compile Include="CompressCheckChangedEventArgs.cs" />
     <Compile Include="DelaysForm.cs">
@@ -153,6 +160,9 @@
   <ItemGroup>
     <EmbeddedResource Include="AlertForm.resx">
       <DependentUpon>AlertForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CommaNamesForm.resx">
+      <DependentUpon>CommaNamesForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="DelaysForm.resx">
       <DependentUpon>DelaysForm.cs</DependentUpon>

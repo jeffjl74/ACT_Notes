@@ -68,6 +68,8 @@ namespace ACT_Notes
             this.linkLabel1 = new System.Windows.Forms.LinkLabel();
             this.label2 = new System.Windows.Forms.Label();
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
+            this.importRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.textBoxZoneFind = new ACT_Notes.TextBoxX();
             this.richEditCtrl1 = new ACT_Notes.EditCtrl();
             this.textBoxEditFind = new ACT_Notes.TextBoxX();
@@ -147,6 +149,7 @@ namespace ACT_Notes
             this.buttonAddGroup.Size = new System.Drawing.Size(75, 23);
             this.buttonAddGroup.TabIndex = 2;
             this.buttonAddGroup.Text = "Add Group";
+            this.toolTip1.SetToolTip(this.buttonAddGroup, "Add a top level group");
             this.buttonAddGroup.UseVisualStyleBackColor = true;
             this.buttonAddGroup.Click += new System.EventHandler(this.buttonAddGroup_Click);
             // 
@@ -157,6 +160,7 @@ namespace ACT_Notes
             this.buttonAddZone.Size = new System.Drawing.Size(75, 23);
             this.buttonAddZone.TabIndex = 0;
             this.buttonAddZone.Text = "Add Zone";
+            this.toolTip1.SetToolTip(this.buttonAddZone, "Add zone to currently selected group");
             this.buttonAddZone.UseVisualStyleBackColor = true;
             this.buttonAddZone.Click += new System.EventHandler(this.buttonAddZone_Click);
             // 
@@ -354,13 +358,14 @@ namespace ACT_Notes
             this.copyToXMLToolStripMenuItem,
             this.copyEntireZoneToXMLToolStripMenuItem,
             this.exportRTFToolStripMenuItem,
+            this.importRTFToolStripMenuItem,
             this.toolStripSeparator1,
             this.skipKillCheckToolStripMenuItem,
             this.setAlertDelaysToolStripMenuItem,
             this.toolStripSeparator2,
             this.deleteToolStripMenuItem});
             this.contextMenuStripZone.Name = "contextMenuStrip2";
-            this.contextMenuStripZone.Size = new System.Drawing.Size(216, 148);
+            this.contextMenuStripZone.Size = new System.Drawing.Size(216, 170);
             this.contextMenuStripZone.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStripZone_Opening);
             // 
             // copyToXMLToolStripMenuItem
@@ -466,6 +471,20 @@ namespace ACT_Notes
             // 
             this.saveFileDialog1.DefaultExt = "rtf";
             this.saveFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
+            this.saveFileDialog1.RestoreDirectory = true;
+            // 
+            // importRTFToolStripMenuItem
+            // 
+            this.importRTFToolStripMenuItem.Name = "importRTFToolStripMenuItem";
+            this.importRTFToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
+            this.importRTFToolStripMenuItem.Text = "Import RTF...";
+            this.importRTFToolStripMenuItem.Click += new System.EventHandler(this.importRTFToolStripMenuItem_Click);
+            // 
+            // openFileDialog1
+            // 
+            this.openFileDialog1.DefaultExt = "rtf";
+            this.openFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
+            this.openFileDialog1.RestoreDirectory = true;
             // 
             // textBoxZoneFind
             // 
@@ -572,5 +591,7 @@ namespace ACT_Notes
         private ToolStripMenuItem copyEntireZoneToXMLToolStripMenuItem;
         private ToolStripMenuItem skipKillCheckToolStripMenuItem;
         private Button buttonAddGroup;
+        private ToolStripMenuItem importRTFToolStripMenuItem;
+        private OpenFileDialog openFileDialog1;
     }
 }

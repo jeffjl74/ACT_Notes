@@ -16,7 +16,6 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Security.Policy;
 using System.Runtime.InteropServices;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
@@ -29,7 +28,7 @@ namespace ACT_Notes
 	{
         const string helpUlr = "https://github.com/jeffjl74/ACT_Notes#act-notes-plugin";
         
-        readonly bool debugMode = true;  //set to test using imports, mouse selection alerts, and the game not running
+        readonly bool debugMode = false;  //set to test using imports, mouse selection alerts, and the game not running
 
         // the data
         ZoneList zoneList = new ZoneList();
@@ -64,8 +63,6 @@ namespace ACT_Notes
         int foundZoneIndex = 0;
 
         // text find in zone notes and mob notes
-        bool foundZoneNeedMobs = false;
-        int foundMobIndex = 0;
         //background for a found word
         //use a slightly off "Color.Yellow" so as to be unlikely to be chosen by the user
         //as a backgound color
@@ -81,24 +78,33 @@ namespace ACT_Notes
         // xml share
         static public string XmlSnippetType = "Note";
         public enum XmlShareDepth { GroupOnly, GroupDeep, ZoneOnly, ZoneDeep, MobOnly };
-        static string pastePrefix = "--------- received ";
+        static string pastePrefix = @"--------- received ";
         List<string> whitelist = new List<string>();
-        string xmlSendingPlayer = string.Empty;
-        Zone xmlZone;
-        string xmlGroup = string.Empty;
-        int xmlNumSections;
-        int xmlCurrentSection;
         string[] xmlSections;
         bool[] packetTrack;
-        bool compressedXml = false;
         internal class xmlQclass 
         {
+            public bool Active = false;
             public Zone zone;
             public string group;
             public string data;
             public string player;
             public bool compressed;
+            public int numSections;
+            public int currentSection;
+            public xmlQclass()
+            {
+                Active = false;
+                zone = null;
+                group = string.Empty;
+                data = string.Empty;
+                player = string.Empty;
+                compressed = false;
+                numSections = 0;
+                currentSection = 0;
+            }
         }
+        xmlQclass rxXml = new xmlQclass();
         ConcurrentQueue<xmlQclass> xmlIncoming = new ConcurrentQueue<xmlQclass>();
 
         ImageList treeImages = new ImageList();     //tree folder images
@@ -114,6 +120,14 @@ namespace ACT_Notes
 
         string settingsFile = Path.Combine(ActGlobals.oFormActMain.AppDataFolder.FullName, "Config\\Notes.config.xml");
 
+        //in-game add mob monitoring
+        static int logTimeStampLength = ActGlobals.oFormActMain.TimeStampLen;
+        const string InGameNoteCmd = "Unknown command: 'note add'";
+        Regex reConsider = new Regex(@"^\\#[0-9A-F]{6}You consider (?<mob>[^.]+)", RegexOptions.Compiled);
+        enum AddNoteState { Idle, Consider }
+        AddNoteState addNoteState = AddNoteState.Idle;
+        internal class AddMobQclass { public string zone; public string mob; }
+        ConcurrentQueue<AddMobQclass> addMobQ = new ConcurrentQueue<AddMobQclass>();
 
         public Notes()
 		{
@@ -145,12 +159,13 @@ namespace ACT_Notes
             zoneTimer.Interval = 1000;
             zoneTimer.Enabled = true;
             zoneTimer.AutoReset = true;
-            zoneTimer.SynchronizingObject = this;
+            zoneTimer.SynchronizingObject = ActGlobals.oFormActMain;
             zoneTimer.Elapsed += ZoneTimer_Elapsed;
             zoneTimer.Start();
 
             ActGlobals.oFormActMain.XmlSnippetAdded += OFormActMain_XmlSnippetAdded;    //for incoming shared note
             ActGlobals.oFormActMain.OnCombatEnd += OFormActMain_OnCombatEnd;            //for tracking kills
+            ActGlobals.oFormActMain.OnLogLineRead += OFormActMain_OnLogLineRead;        //for adding mobs
 
             if (ActGlobals.oFormActMain.GetAutomaticUpdatesAllowed())
             {
@@ -166,7 +181,8 @@ namespace ACT_Notes
 		{
 			// Unsubscribe from any events you listen to when exiting!
             ActGlobals.oFormActMain.XmlSnippetAdded -= OFormActMain_XmlSnippetAdded;
-            ActGlobals.oFormActMain.OnCombatEnd += OFormActMain_OnCombatEnd;
+            ActGlobals.oFormActMain.OnCombatEnd -= OFormActMain_OnCombatEnd;
+            ActGlobals.oFormActMain.OnLogLineRead -= OFormActMain_OnLogLineRead;
 
             SaveSettings();
 			lblStatus.Text = "Plugin Exited";
@@ -175,6 +191,29 @@ namespace ACT_Notes
         #endregion IActPluginV1 Members
 
         #region ACT Interaction
+
+        private void OFormActMain_OnLogLineRead(bool isImport, LogLineEventArgs logInfo)
+        {
+            if( !isImport && logInfo.detectedType == 0 && logInfo.logLine.Length > logTimeStampLength)
+            {
+                string content = logInfo.logLine.Substring(logTimeStampLength);
+                if (addNoteState == AddNoteState.Idle)
+                {
+                    if (content == InGameNoteCmd)
+                        addNoteState = AddNoteState.Consider;
+                }
+                else if (addNoteState == AddNoteState.Consider)
+                {
+                    Match match = reConsider.Match(content);
+                    if (match.Success)
+                    {
+                        addMobQ.Enqueue(new AddMobQclass { zone = cleanZone, mob = match.Groups["mob"].Value });
+                        mUiContext.Post(AddMobProc, null);
+                        addNoteState = AddNoteState.Idle;
+                    }
+                }
+            }
+        }
 
         private void OFormActMain_OnCombatEnd(bool isImport, CombatToggleEventArgs encounterInfo)
         {
@@ -343,9 +382,10 @@ namespace ACT_Notes
                     Rectangle screen = Screen.GetWorkingArea(ActGlobals.oFormActMain);
                     DialogResult result = SimpleMessageBox.Show(new Point(screen.Width/2 - 100, screen.Height/2 - 100),
                           @"There is an update for the Notes plugin."
-                        + @"\line Update it now?"
-                        + @"\line (If there is an update to ACT"
-                        + @"\line you should click No and update ACT first.)"
+                        + @"\line This update adds a top level folder to the zone tree. "
+                        + @"\line\line Update it now?"
+                        + @"\line If there is an update to ACT"
+                        + @"\line you should click No and update ACT first."
                         + @"\line\line Release notes at project website:"
                         + @"{\line\ql " + helpUlr + "}"
                         , "Notes New Version", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
@@ -378,88 +418,75 @@ namespace ACT_Notes
                     string[] counts = sections.Split('/');
                     if (counts.Length == 2)
                     {
-                        int.TryParse(counts[0], out xmlCurrentSection);
-                        int.TryParse(counts[1], out xmlNumSections);
-
-                        string zone = "";
-                        if (e.XmlAttributes.TryGetValue("Z", out zone))
+                        int currentSection = -1;
+                        int numSections = -1;
+                        int.TryParse(counts[0], out currentSection);
+                        int.TryParse(counts[1], out numSections);
+                        //we have to get section 1 first
+                        if (currentSection == 1)
                         {
-                            if (xmlZone == null)
-                            {
-                                xmlZone = new Zone();
-                                xmlSections = new string[xmlNumSections];
-                                packetTrack = new bool[xmlNumSections];
-                            }
-                            xmlZone.ZoneName = XmlCopyForm.DecodeShare(zone);
+                            rxXml = new xmlQclass();
+                            rxXml.numSections = numSections;
+                            xmlSections = new string[rxXml.numSections];
+                            packetTrack = new bool[rxXml.numSections];
+                            rxXml.Active = true;
+                        }
+                        if(rxXml.Active)
+                        {
+                            rxXml.currentSection = currentSection;
+                            packetTrack[rxXml.currentSection - 1] = true;
 
                             string group;
-                            if(e.XmlAttributes.TryGetValue("G", out group))
+                            if (e.XmlAttributes.TryGetValue("G", out group))
                             {
                                 if (!string.IsNullOrEmpty(group))
-                                    xmlGroup = XmlCopyForm.DecodeShare(group);
+                                    rxXml.group = XmlCopyForm.DecodeShare(group);
+                            }
+
+                            string zone = "";
+                            if (e.XmlAttributes.TryGetValue("Z", out zone))
+                            {
+                                if (rxXml.zone == null)
+                                    rxXml.zone = new Zone();
+                                rxXml.zone.ZoneName = XmlCopyForm.DecodeShare(zone);
                             }
 
                             string data;
-                            e.XmlAttributes.TryGetValue("N", out data);
-                            xmlSections[0] = data;
-                            packetTrack[0] = true;
+                            if (e.XmlAttributes.TryGetValue("N", out data))
+                            {
+                                if (xmlSections.Length > rxXml.currentSection - 1)
+                                {
+                                    xmlSections[rxXml.currentSection - 1] = data;
+                                }
+                            }
 
                             string mobName;
                             if (e.XmlAttributes.TryGetValue("M", out mobName))
                             {
-                                Mob mob = new Mob { MobName = XmlCopyForm.DecodeShare(mobName) };
-                                xmlZone.Mobs.Add(mob);
+                                if (rxXml.zone != null)
+                                {
+                                    Mob mob = new Mob { MobName = XmlCopyForm.DecodeShare(mobName) };
+                                    rxXml.zone.Mobs.Add(mob);
+                                }
                             }
 
-                            e.XmlAttributes.TryGetValue("P", out xmlSendingPlayer);
+                            string sendingPlayer;
+                            if (e.XmlAttributes.TryGetValue("P", out sendingPlayer))
+                                rxXml.player = sendingPlayer;
 
                             string isCompressed;
-                            e.XmlAttributes.TryGetValue("C", out isCompressed);
-                            compressedXml = !string.IsNullOrEmpty(isCompressed);
+                            if (e.XmlAttributes.TryGetValue("C", out isCompressed))
+                                rxXml.compressed = !string.IsNullOrEmpty(isCompressed);
 
-                            // done if we have all the sections
+                            // done if we have all sections
                             if (!packetTrack.Contains(false))
                             {
-                                string data_enc = string.Join("", xmlSections);
-                                xmlQclass qd = new xmlQclass { zone = xmlZone, group = xmlGroup, data = data_enc, player = xmlSendingPlayer, compressed = compressedXml };
-                                xmlIncoming.Enqueue(qd);
-                                xmlZone = null;
-                                xmlGroup = string.Empty;
+                                rxXml.data = string.Join("", xmlSections);
+                                xmlIncoming.Enqueue(rxXml);
                                 mUiContext.Post(XmlPasteProc, null);
+                                rxXml = new xmlQclass(); // redudant when everything goes well, but good for error recovery/avoidance
                             }
-                        }
-                        else
-                        {
-                            // no Z means this is a continuation section
-                            // but need to have a zone instance if we have not seen section 1
-                            if (xmlZone == null)
-                            {
-                                xmlZone = new Zone();
-                                xmlSections = new string[xmlNumSections];
-                                packetTrack = new bool[xmlNumSections];
-                            }
-                            if (xmlZone != null)
-                            {
-                                string data;
-                                e.XmlAttributes.TryGetValue("N", out data);
-
-                                if (xmlSections.Length > xmlCurrentSection - 1)
-                                {
-                                    xmlSections[xmlCurrentSection - 1] = data;
-                                    packetTrack[xmlCurrentSection - 1] = true;
-                                }
-
-                                // process the note if we have all the sections
-                                if (!packetTrack.Contains(false))
-                                {
-                                    string data_enc = string.Join("", xmlSections);
-                                    xmlQclass qd = new xmlQclass { zone = xmlZone, data = data_enc, player = xmlSendingPlayer, compressed = compressedXml };
-                                    xmlIncoming.Enqueue(qd);
-                                    xmlZone = null;
-                                    mUiContext.Post(XmlPasteProc, null);
-                                }
-                            }
-                        } // was a continuation section
+                        } // active section gathering
                     } // found both section numbers
                 } // found section ID
 
@@ -473,7 +500,6 @@ namespace ACT_Notes
             xmlQclass incoming;
             while (xmlIncoming.TryDequeue(out incoming))
             {
-                Zone incZone = incoming.zone;
                 // incoming data has substitutions to work around EQII and ACT expectations
                 string data = XmlCopyForm.DecodeShare(incoming.data);
                 if (incoming.compressed)
@@ -490,185 +516,226 @@ namespace ACT_Notes
                     continue;
                 }
 
-                Zone zone = zoneList.Zones.Find(z => z.ZoneName == incZone.ZoneName);
-                if (zone == null)
+                // group data
+                NoteGroup ng = zoneList.NoteGroups[incoming.group];
+                if (!string.IsNullOrEmpty(incoming.group) && incoming.zone == null)
                 {
-                    // new zone/mob
-                    if (incZone.Mobs.Count == 0)
-                    {
-                        // no mob, just zone notes
-                        incZone.Notes = data;
-                    }
-                    else
-                    {
-                        incZone.Mobs[0].Notes = data;
-                        incZone.Mobs[0].KillOrder = 0;
-                    }
+                    // incoming data is the note for the group
 
-                    zoneList.Zones.Add(incZone);
-
-                    string groupName = zoneList.NoteGroups.GetGroupName(incZone.ZoneName);
-                    if (string.IsNullOrEmpty(groupName))
-                        groupName = DefaultGroupName;
-                    TreeNode groupNode = FindGroupNode(groupName);
-                    if (groupNode == null)
-                        groupNode = FindOrCreateDefaultGroupNode();
-
-                    TreeNode zn = groupNode.Nodes.Add(incZone.ZoneName);
-                    zn.Tag = incZone;
-                    zn.Name = incZone.ZoneName;
-                    NoteGroup ng = groupNode.Tag as NoteGroup;
+                    // we only save the group note if we already have that group
+                    // (we don't create a new group just for a group note)
                     if (ng != null)
-                        zoneList.NoteGroups.AddNoteIfNotGrouped(groupNode.Text, incZone.ZoneName);
-                    if (incZone.Mobs.Count > 0)
                     {
-                        TreeNode mn = zn.Nodes.Add(incZone.Mobs[0].MobName);
-                        mn.Tag = incZone.Mobs[0];
-                        mn.Name = incZone.Mobs[0].MobName;
-                        mn.EnsureVisible();
-                        treeViewZones.SelectedNode = mn;
+                        Zone.PasteType mergeOp = ng.Paste;
+                        ng.Notes = ProcessMergeType(mergeOp, ng.GroupName, incoming.player, ng.Notes, data);
                     }
                     else
                     {
-                        zn.EnsureVisible();
-                        treeViewZones.SelectedNode = zn;
+                        // we do not have this group
+                        // so we don't know where this note goes
+                        // so just ignore this note
+                        continue;
                     }
                 }
-                else
+                string groupName = incoming.group;
+                if (string.IsNullOrEmpty(groupName))
                 {
-                    // existing zone
-                    GetWhiteList();
-
-                    Zone.PasteType mergeOp = zone.Paste;
-
-                    if (incZone.Mobs.Count > 0)
+                    groupName = DefaultGroupName;
+                    ng = zoneList.NoteGroups[groupName];
+                }
+                if (ng == null)
+                {
+                    if(incoming.zone != null)
                     {
-                        // existing mob note?
-                        Mob mob = zone.Mobs.Find(m => m.MobName == incZone.Mobs[0].MobName);
-                        if (mob != null)
+                        // see if this zone is already in a group with a different name
+                        string existingGroup = zoneList.NoteGroups.GetGroupName(incoming.zone.ZoneName);
+                        ng = zoneList.NoteGroups[existingGroup];
+                        if (ng != null)
+                            groupName = existingGroup;
+                    }
+                    if(ng == null)
+                    {
+                        ng = new NoteGroup { GroupName = groupName };
+                        zoneList.NoteGroups.Add(ng);
+                    }
+                }
+
+                // group tree
+                TreeNode groupNode = FindGroupNode(groupName);
+                if (groupNode == null)
+                {
+                    groupNode = new TreeNode(groupName);
+                    groupNode.Name = groupName;
+                    groupNode.Tag = ng;
+                }
+
+                if(incoming.zone != null)
+                {
+                    Zone incZone = incoming.zone;
+                    Zone zone = zoneList.Zones.Find(z => z.ZoneName == incZone.ZoneName);
+                    if (zone == null)
+                    {
+                        // new zone/mob
+                        if (incZone.Mobs.Count == 0)
                         {
-                            //
-                            // existing zone, existing mob
-                            //
-                            TreeNode destMobNode = null;
-                            //TreeNode[] zoneNodes = treeViewZones.Nodes.Find(incZone.ZoneName, true);
-                            //if (zoneNodes.Length > 0)
-                            TreeNode zoneNode = FindZoneNode(incZone.ZoneName);
-                            if(zoneNode != null)
+                            // no mob, just zone notes
+                            incZone.Notes = data;
+                        }
+                        else
+                        {
+                            incZone.Mobs[0].Notes = data;
+                            incZone.Mobs[0].KillOrder = 0;
+                        }
+
+                        zoneList.Zones.Add(incZone);
+
+                        if (groupName == DefaultGroupName)
+                            zoneList.NoteGroups.PutNoteInGroup(DefaultGroupName, incZone.ZoneName);
+                        else
+                            zoneList.NoteGroups.AddNoteIfNotGrouped(groupName, incZone.ZoneName);
+
+                        TreeNode zn = groupNode.Nodes.Add(incZone.ZoneName);
+                        zn.Tag = incZone;
+                        zn.Name = incZone.ZoneName;
+                        if (incZone.Mobs.Count > 0)
+                        {
+                            TreeNode mn = zn.Nodes.Add(incZone.Mobs[0].MobName);
+                            mn.Tag = incZone.Mobs[0];
+                            mn.Name = incZone.Mobs[0].MobName;
+                            mn.EnsureVisible();
+                            treeViewZones.SelectedNode = mn;
+                        }
+                        else
+                        {
+                            zn.EnsureVisible();
+                            treeViewZones.SelectedNode = zn;
+                        }
+                    }
+                    else
+                    {
+                        // existing zone
+                        GetWhiteList();
+
+                        Zone.PasteType mergeOp = zone.Paste;
+
+                        if (!string.IsNullOrEmpty(incoming.group))
+                            zoneList.NoteGroups.AddNoteIfNotGrouped(incoming.group, incZone.ZoneName);
+
+                        if (incZone.Mobs.Count > 0)
+                        {
+                            // existing mob note?
+                            Mob mob = zone.Mobs.Find(m => m.MobName == incZone.Mobs[0].MobName);
+                            if (mob != null)
                             {
-                                //TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(mob.MobName, false);
-                                TreeNode[] mobNodes = zoneNode.Nodes.Find(mob.MobName, false);
-                                if (mobNodes.Length > 0)
+                                //
+                                // existing zone, existing mob
+                                //
+                                TreeNode destMobNode = null;
+                                TreeNode zoneNode = FindZoneNode(incZone.ZoneName);
+                                if (zoneNode != null)
                                 {
-                                    destMobNode = mobNodes[0];
-                                    if (treeViewZones.SelectedNode == destMobNode && richEditCtrl1.rtbDoc.Modified)
-                                        SaveNote(destMobNode, false);
+                                    TreeNode[] mobNodes = zoneNode.Nodes.Find(mob.MobName, false);
+                                    if (mobNodes.Length > 0)
+                                    {
+                                        destMobNode = mobNodes[0];
+                                        if (treeViewZones.SelectedNode == destMobNode && richEditCtrl1.rtbDoc.Modified)
+                                            SaveNote(destMobNode, true);
+                                    }
+                                }
+
+                                mob.Notes = ProcessMergeType(mergeOp, mob.MobName, incoming.player, mob.Notes, data);
+
+                                if (destMobNode != null)
+                                {
+                                    if (treeViewZones.SelectedNode == destMobNode)
+                                        treeViewZones.SelectedNode = null; //force an update
+                                    destMobNode.EnsureVisible();
+                                    treeViewZones.SelectedNode = destMobNode;
                                 }
                             }
-
-                            if (mergeOp == Zone.PasteType.Ask)
-                                mergeOp = AskPasteType(mob.MobName);
-                            if (mergeOp == Zone.PasteType.Ignore)
-                                return;
-                            if (mergeOp == Zone.PasteType.Replace ||
-                               (mergeOp == Zone.PasteType.Accept && whitelist.Contains(xmlSendingPlayer)))
+                            else
                             {
-                                mob.Notes = data;
-                            }
-                            else // Append
-                            {
-                                // use a RichTextBox to merge RTF docs
-                                RichTextBox rtb = new RichTextBox();
-                                rtb.Rtf = mob.Notes;
-
-                                // delimiter between the original and the incoming
-                                AppendDelimiter(rtb, incoming.player);
-
-                                rtb.Select(rtb.TextLength, 0);
-                                rtb.SelectedRtf = data;
-                                mob.Notes = rtb.Rtf;
-                            }
-
-                            if (destMobNode != null)
-                            {
-                                if (treeViewZones.SelectedNode == destMobNode)
-                                    treeViewZones.SelectedNode = null; //force an update
-                                destMobNode.EnsureVisible();
-                                treeViewZones.SelectedNode = destMobNode;
+                                //
+                                // new mob in existing zone
+                                //
+                                incZone.Mobs[0].Notes = data;
+                                incZone.Mobs[0].KillOrder = zone.Mobs.Count;
+                                zone.Mobs.Add(incZone.Mobs[0]);
+                                TreeNode node = FindZoneNode(incZone.ZoneName);
+                                if (node != null)
+                                {
+                                    TreeNode mn = node.Nodes.Add(incZone.Mobs[0].MobName);
+                                    mn.Tag = incZone.Mobs[0];
+                                    mn.Name = incZone.Mobs[0].MobName;
+                                    treeViewZones.Sort();
+                                    mn.EnsureVisible();
+                                    treeViewZones.SelectedNode = mn;
+                                }
                             }
                         }
                         else
                         {
                             //
-                            // new mob in existing zone
+                            // zone note for existing zone
                             //
-                            incZone.Mobs[0].Notes = data;
-                            incZone.Mobs[0].KillOrder = zone.Mobs.Count;
-                            zone.Mobs.Add(incZone.Mobs[0]);
-                            //TreeNode[] nodes = treeViewZones.Nodes.Find(incZone.ZoneName, true);
-                            //if (nodes.Length > 0)
-                            TreeNode node = FindZoneNode(incZone.ZoneName);
-                            if(node != null)
+                            TreeNode destZoneNode = null;
+                            TreeNode node = FindZoneNode(zone.ZoneName);
+                            if (node != null)
                             {
-                                //TreeNode mn = nodes[0].Nodes.Add(incZone.Mobs[0].MobName);
-                                TreeNode mn = node.Nodes.Add(incZone.Mobs[0].MobName);
-                                mn.Tag = incZone.Mobs[0];
-                                mn.Name = incZone.Mobs[0].MobName;
-                                treeViewZones.Sort();
-                                mn.EnsureVisible();
-                                treeViewZones.SelectedNode = mn;
+                                destZoneNode = node;
+                                if (treeViewZones.SelectedNode == destZoneNode && richEditCtrl1.rtbDoc.Modified)
+                                    SaveNote(destZoneNode, true);
+                            }
+
+                            zone.Notes = ProcessMergeType(mergeOp, zone.ZoneName, incoming.player, zone.Notes, data);
+
+                            if (destZoneNode != null)
+                            {
+                                if (treeViewZones.SelectedNode == destZoneNode)
+                                    treeViewZones.SelectedNode = null; //force an update
+                                destZoneNode.EnsureVisible();
+                                treeViewZones.SelectedNode = destZoneNode;
                             }
                         }
                     }
-                    else
-                    {
-                        //
-                        // zone note for existing zone
-                        //
-                        TreeNode destZoneNode = null;
-                        //TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, true);
-                        //if (nodes.Length > 0)
-                        TreeNode node = FindZoneNode(zone.ZoneName);
-                        if(node != null)
-                        {
-                            //destZoneNode = nodes[0];
-                            destZoneNode = node;
-                            if (treeViewZones.SelectedNode == destZoneNode && richEditCtrl1.rtbDoc.Modified)
-                                SaveNote(destZoneNode, false);
-                        }
-
-                        if (mergeOp == Zone.PasteType.Ask)
-                            mergeOp = AskPasteType(zone.ZoneName);
-                        if (mergeOp == Zone.PasteType.Ignore)
-                            return;
-                        if (mergeOp == Zone.PasteType.Replace ||
-                           (mergeOp == Zone.PasteType.Accept && whitelist.Contains(xmlSendingPlayer)))
-                        {
-                            zone.Notes = data;
-                        }
-                        else // append
-                        {
-                            // use a RichTextBox to merge RTF docs
-                            RichTextBox rtb = new RichTextBox();
-                            rtb.Rtf = zone.Notes;
-
-                            // delimiter
-                            AppendDelimiter(rtb, incoming.player);
-
-                            rtb.Select(rtb.TextLength, 0);
-                            rtb.SelectedRtf = data;
-                            zone.Notes = rtb.Rtf;
-                        }
-
-                        if (destZoneNode != null)
-                        {
-                            if (treeViewZones.SelectedNode == destZoneNode)
-                                treeViewZones.SelectedNode = null; //force an update
-                            destZoneNode.EnsureVisible();
-                            treeViewZones.SelectedNode = destZoneNode;
-                        }
-                    }
                 }
+            }
+            PopulateZonesTree();
+            SaveSettings();
+        }
+
+        private string ProcessMergeType(Zone.PasteType mergeOp, string prompt, string player, string existingNote, string update)
+        {
+            if (mergeOp == Zone.PasteType.Ask)
+                mergeOp = AskPasteType(prompt);
+            if (mergeOp == Zone.PasteType.Ignore)
+                return existingNote;
+            if (mergeOp == Zone.PasteType.Replace ||
+               (mergeOp == Zone.PasteType.Accept && whitelist.Contains(player)))
+            {
+                return update;
+            }
+            else // append
+            {
+                // only need to append if the update is different from the existing note
+                // and to compare, we need to remove line breaks the way XmlCopyForm does
+                string noBreaks = existingNote.Replace("\\par\r\n", "\\par ").Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+                if (noBreaks != update)
+                {
+                    // use a RichTextBox to merge RTF docs
+                    RichTextBox rtb = new RichTextBox();
+                    if (!string.IsNullOrEmpty(existingNote))
+                    {
+                        rtb.Rtf = existingNote;
+                        // delimiter
+                        AppendDelimiter(rtb, player);
+                    }
+                    rtb.Select(rtb.TextLength, 0);
+                    rtb.SelectedRtf = update;
+                    return rtb.Rtf;
+                }
+                else
+                    return existingNote;
             }
         }
 
@@ -699,7 +766,7 @@ namespace ACT_Notes
             if(!string.IsNullOrEmpty(player))
                 who = $" from {player}";
             string stats = $"{pastePrefix}{who} {DateTime.Now.ToShortDateString()} {DateTime.Now.ToShortTimeString()}";
-            rtb.SelectedRtf = @"{\rtf1\ansi\par\pard\b " + stats + @" ------------\b0\par}";
+            rtb.SelectedRtf = @"{\rtf1\ansi{\colortbl ;}\par\pard\cf0\b " + stats + @" ------------\b0\par}";
         }
 
         private void GetWhiteList()
@@ -730,6 +797,68 @@ namespace ACT_Notes
                 radioButtonAccept.Visible = false;
         }
 
+        private void AddMobProc(object o)
+        {
+            AddMobQclass incoming;
+            while (addMobQ.TryDequeue(out incoming))
+            {
+                string groupName = zoneList.NoteGroups.GetGroupName(incoming.zone);
+                if (string.IsNullOrEmpty(groupName))
+                {
+                    TreeNode tn = treeViewZones.SelectedNode;
+                    if (tn != null)
+                    {
+                        switch(tn.Level)
+                        {
+                            case NodeLevels.Group:
+                                groupName = tn.Text;
+                                break;
+                            case NodeLevels.Zone:
+                                groupName = tn.Parent != null ? tn.Parent.Text : "";
+                                break;
+                            case NodeLevels.Mob:
+                                groupName = tn.Parent != null && tn.Parent.Parent != null ? tn.Parent.Parent.Text : "";
+                                break;
+                        }
+                    }
+                    if (string.IsNullOrEmpty(groupName))
+                        groupName = DefaultGroupName;
+                }
+                NoteGroup ng = zoneList.NoteGroups[groupName];
+                if(ng != null)
+                {
+                    Zone zone = zoneList[incoming.zone];
+                    if(zone == null)
+                    {
+                        zone = new Zone { ZoneName = incoming.zone};
+                        zoneList.Zones.Add(zone);
+                    }
+                    if(!ng.Zones.Contains(incoming.zone))
+                    {
+                        ng.Zones.Add(incoming.zone);
+                    }
+                    Mob mob = zone.GetMob(incoming.mob);
+                    if(mob == null)
+                    {
+                        mob = new Mob { MobName = incoming.mob, KillOrder = zone.Mobs.Count };
+                        zone.Mobs.Add(mob);
+                        PopulateZonesTree();
+                        TreeNode zn = FindZoneNode(incoming.zone);
+                        if (zn != null)
+                        {
+                            TreeNode[] addmobs = zn.Nodes.Find(incoming.mob, false);
+                            if(addmobs != null && addmobs.Count() > 0)
+                            {
+                                addmobs[0].EnsureVisible();
+                                treeViewZones.SelectedNode = addmobs[0];
+                            }
+                        }
+                    }
+                }
+            }
+            SaveSettings();
+        }
+
         #endregion ACT Interaction
 
         void LoadSettings()
@@ -742,40 +871,8 @@ namespace ACT_Notes
                     using (FileStream fs = new FileStream(settingsFile, FileMode.Open))
                     {
                         zoneList = (ZoneList)xmlSerializer.Deserialize(fs);
-                        //zoneList.Zones.Sort();
                     }
-                    Version configVersion = new Version(zoneList.Version);
-                    bool needSep = configVersion <= new Version("1.3.0.0");
-                    bool configChanged = false;
-                    foreach(Zone zone in zoneList.Zones)
-                    {
-                        zone.Mobs.Sort();
-                        if(needSep)
-                        {
-                            // fix name separator from older version
-                            foreach(Mob mob in zone.Mobs)
-                            {
-                                if (mob.MobName.Contains(","))
-                                {
-                                    mob.MobName = mob.MobName.Replace(',', nameSeparator);
-                                    configChanged = true;
-                                }
-                            }
-                        }
-                    }
-                    if(needSep)
-                    {
-                        var runtimeAssembly = typeof(Notes).GetTypeInfo().Assembly;
-                        var runtimeAssemblyVersion = runtimeAssembly.GetName().Version;
-                        zoneList.Version = runtimeAssemblyVersion.ToString();
-                        if(configChanged)
-                        {
-                            SimpleMessageBox.ShowDialog(ActGlobals.oFormActMain, 
-                                @"Notes plugin encounter name list separator converted from comma to semicolon.\par\par "
-                                + "If any individual mob names had commas, you need to edit them back in.",
-                                "Notes plugin config file changed");
-                        }
-                    }
+
                     PopulateZonesTree();
                 }
 				catch (Exception ex)
@@ -835,6 +932,7 @@ namespace ACT_Notes
             }
 
             treeViewZones.Nodes.Clear();
+            treeViewZones.SuspendLayout();
 
             // first, make all of the group nodes
             foreach (NoteGroup ng in zoneList.NoteGroups)
@@ -921,6 +1019,7 @@ namespace ACT_Notes
                 if(treeViewZones.Nodes.Count > 0)
                     treeViewZones.SelectedNode = treeViewZones.Nodes[0];
             }
+            treeViewZones.ResumeLayout();
         }
 
         TreeNode FindGroupNode(string name)
@@ -936,20 +1035,29 @@ namespace ACT_Notes
 
         TreeNode FindZoneNode(string name)
         {
-            List<TreeNode> found = treeViewZones.FlattenTree().Where(n => n.Level == NodeLevels.Zone && n.Name == name).ToList();
-            if (found.Count > 0)
-                return found[0];
+            List<TreeNode> found = treeViewZones.Nodes.Find(name, true).ToList();
+            foreach(TreeNode treeNode in found)
+            {
+                if (treeNode.Level == NodeLevels.Zone)
+                {
+                    return treeNode;
+                }
+            }
             return null;
         }
 
         private void treeViewZones_DrawNode(object sender, DrawTreeNodeEventArgs e)
         {
-            if (e.Node == null) return;
+            if (e.Node == null)
+                return;
+
+            if (!e.Node.IsVisible)
+                return;
 
             var font = e.Node.NodeFont ?? e.Node.TreeView.Font;
 
             // if treeview's HideSelection property is "True", 
-            // this will always returns "False" on unfocused treeview
+            // this will always return "False" on unfocused treeview
             var selected = (e.State & TreeNodeStates.Selected) == TreeNodeStates.Selected;
 
             // keep the focused highlight if selected
@@ -1045,7 +1153,8 @@ namespace ACT_Notes
             {
                 buttonZoneFindNext.Enabled = true;
                 string finding = textBoxZoneFind.Text.ToLower();
-                foundNodes = treeViewZones.FlattenTree().Where(n => n.Text.ToLower().Contains(finding)).ToList();
+                GetAllTreeNodes(treeViewZones); //populate foundNodes in treeview order (i.e. properly sorted)
+                foundNodes = foundNodes.Where(n => n.Text.ToLower().Contains(finding)).ToList();
                 if (foundNodes.Count > 0)
                 {
                     foundNodesIndex = 0;
@@ -1096,7 +1205,6 @@ namespace ACT_Notes
             TreeNode add = new TreeNode(newGroup);
             treeViewZones.Nodes.Add(add);
             treeViewZones.SelectedNode = add;
-            Application.DoEvents();
             add.BeginEdit();
         }
 
@@ -1132,7 +1240,6 @@ namespace ACT_Notes
                 TreeNode add = new TreeNode(name);
                 grpNode.Nodes.Add(add);
                 treeViewZones.SelectedNode = add;
-                Application.DoEvents();
                 add.BeginEdit();
             }
             else
@@ -1178,7 +1285,7 @@ namespace ACT_Notes
                         if (treeViewZones.SelectedNode.Level == NodeLevels.Mob)
                         {
                             // plugin mob is selected
-                            DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Append {autoNodeName} to {treeViewZones.SelectedNode.Text}?", "Apppend",
+                            DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Append \\b {autoNodeName}\\b0\\line to \\b {treeViewZones.SelectedNode.Text}\\b0 ?", "Append",
                                 MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
                             if (result == DialogResult.Yes)
                             {
@@ -1197,9 +1304,10 @@ namespace ACT_Notes
                 }
                 
                 TreeNode add = new TreeNode(name);
+                // need to add the mob tag before adding the node so tree sort will work
+                add.Tag = new Mob { MobName = name, KillOrder = zoneNode.Nodes.Count };
                 zoneNode.Nodes.Add(add);
                 treeViewZones.SelectedNode = add;
-                Application.DoEvents();
                 zoneNode.Expand();
                 add.BeginEdit();
             }
@@ -1218,7 +1326,7 @@ namespace ACT_Notes
                     UnHighlightFound();
 
                     // save the note for the current (about to be un-selected) node
-                    SaveNote(treeViewZones.SelectedNode, false);
+                    SaveNote(treeViewZones.SelectedNode, true);
                 }
             }
         }
@@ -1371,7 +1479,7 @@ namespace ACT_Notes
                                 {
                                     // alert color has ended
                                     rtb.Select(audioStart, audioLen);
-                                    string say = rtb.SelectedText.Trim();
+                                    string say = rtb.SelectedText.Trim().Trim('\n');
                                     if (!string.IsNullOrEmpty(say))
                                     {
                                         if (audioAlerts.Length == 0)
@@ -1387,6 +1495,7 @@ namespace ACT_Notes
                                     audioStart = -1;
                                 }
 
+                                rtb.Select(i, 1);
                                 if (rtb.SelectionColor == EditCtrl.visualAlertColor
                                     || rtb.SelectionColor == EditCtrl.audioVisualAlertColor)
                                 {
@@ -1405,7 +1514,7 @@ namespace ACT_Notes
                                 {
                                     // we have reached the end of the alert color
                                     rtb.Select(visualStart, visualLen);
-                                    string say = rtb.SelectedText.Trim();
+                                    string say = rtb.SelectedText.Trim().Trim('\n');
                                     if (!string.IsNullOrEmpty(say))
                                     {
                                         if (popAlerts.Count == 0)
@@ -1460,6 +1569,162 @@ namespace ACT_Notes
             }
         }
 
+        private void treeViewZones_AfterLabelEdit(object sender, NodeLabelEditEventArgs e)
+        {
+            if (e.Node != null)
+            {
+                bool removed = false;
+                // if the user accepted a mob name from the main ACT tree without edit,
+                // e.Label will be null and autoMobName will not be null
+                string nodeName = e.Label;
+                if (e.Label == null && !string.IsNullOrEmpty(autoNodeName) && e.Node.Level > NodeLevels.Group)
+                    nodeName = autoNodeName;
+
+                if (string.IsNullOrEmpty(nodeName))
+                {
+                    if ((e.Node.Level == NodeLevels.Group && e.Node.Text == newGroup)
+                        || e.Node.Level == NodeLevels.Zone && e.Node.Text == newZone
+                        || e.Node.Level == NodeLevels.Mob && e.Node.Text == newMob)
+                    {
+                        // we don't accept "New Group", "New Mob" or "New Zone". The user must enter something else
+                        DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain, @"Please enter a new name.\line Or press [Cancel] to cancel the add.", "Invalid entry",
+                            MessageBoxButtons.OKCancel);
+                        if (result == DialogResult.OK)
+                            e.Node.BeginEdit();
+                        else
+                        {
+                            // user cancelled
+                            e.Node.EndEdit(true);
+                            e.Node.Remove();
+                        }
+                    }
+                    else
+                    {
+                        // user hit ESC while editing an existing node
+                        // revert to the unedited state
+                        e.Node.EndEdit(true);
+                    }
+                }
+                else
+                {
+                    // user modified the node name
+
+                    if (e.Node.Level == NodeLevels.Group)
+                    {
+                        NoteGroup newGroup = new NoteGroup { GroupName = nodeName };
+                        if (zoneList.NoteGroups.Contains(newGroup))
+                        {
+                            SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Group Names are not allowed.", "Invalid entry",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            e.Node.Remove();
+                            autoNodeName = String.Empty;
+                            removed = true;
+                        }
+                        else
+                        {
+                            // group node
+                            if (e.Node.Tag == null)
+                            {
+                                // new group
+                                zoneList.NoteGroups.Add(newGroup);
+                                e.Node.Tag = newGroup;
+                                e.Node.Name = nodeName;
+                            }
+                            else
+                            {
+                                // editing an existing group
+                                NoteGroup noteGroup = e.Node.Tag as NoteGroup;
+                                if (noteGroup != null)
+                                    noteGroup.GroupName = nodeName;
+                            }
+                        }
+                        e.Node.EndEdit(true);
+                    }
+                    else if (e.Node.Level == NodeLevels.Zone)
+                    {
+                        NoteGroup ng = e.Node.Parent.Tag as NoteGroup;
+                        Zone newZone = new Zone { ZoneName = nodeName };
+                        if (zoneList.Zones.Contains(newZone))
+                        {
+                            SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Zone Names are not allowed.", "Invalid entry",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            e.Node.Remove();
+                            autoNodeName = String.Empty;
+                            removed = true;
+                        }
+                        else
+                        {
+                            // zone node
+                            if (e.Node.Tag == null)
+                            {
+                                // new zone
+                                zoneList.Zones.Add(newZone);
+                                e.Node.Tag = newZone;
+                                e.Node.Name = nodeName;
+                                if (ng != null)
+                                    ng.Zones.Add(nodeName);
+                            }
+                            else
+                            {
+                                // editing an existing zone
+                                Zone zone = e.Node.Tag as Zone;
+                                if (zone != null)
+                                {
+                                    if (ng != null)
+                                    {
+                                        ng.Zones.Remove(zone.ZoneName);
+                                        ng.Zones.Add(nodeName);
+                                    }
+                                    zone.ZoneName = nodeName;
+                                }
+                            }
+                        }
+                        e.Node.EndEdit(true);
+                    }
+                    else
+                    {
+                        // mob node
+                        Zone zone = e.Node.Parent.Tag as Zone;
+                        if (zone != null)
+                        {
+                            Mob newMob = new Mob { MobName = nodeName, KillOrder = zone.Mobs.Count };
+                            if (zone.Mobs.Contains(newMob))
+                            {
+                                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Mob Names are not allowed.", "Invalid entry",
+                                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                e.Node.Remove();
+                                autoNodeName = String.Empty;
+                                removed = true;
+                            }
+                            else
+                            {
+                                Mob existing = zone.GetMob(e.Node.Text);
+                                if (existing != null)
+                                {
+                                    //renamed node
+                                    existing.MobName = nodeName;
+                                }
+                                else
+                                {
+                                    // new mob
+                                    zone.Mobs.Add(newMob);
+                                    e.Node.Tag = newMob;
+                                    e.Node.Name = nodeName;
+                                }
+                            }
+                        }
+                        e.Node.EndEdit(true);
+                    }
+                    if (!removed)
+                    {
+                        treeViewZones.SelectedNode = e.Node;
+                        BuildEnemyList();
+                    }
+                }
+                SaveSettings();
+            }
+        }
+
         void UiAudio(object o)
         {
             string say = o as string;
@@ -1501,155 +1766,6 @@ namespace ACT_Notes
             zoneList.AlertX = alertForm.Location.X;
             zoneList.AlertY = alertForm.Location.Y;
             zoneList.AlertWidth = alertForm.Width;
-        }
-
-        private void treeViewZones_AfterLabelEdit(object sender, NodeLabelEditEventArgs e)
-        {
-            if (e.Node != null)
-            {
-                bool removed = false;
-                // if the user accepted a mob name from the main ACT tree without edit,
-                // e.Label will be null and autoMobName will not be null
-                string nodeName = e.Label;
-                if (e.Label == null && !string.IsNullOrEmpty(autoNodeName) && e.Node.Level > NodeLevels.Group)
-                    nodeName = autoNodeName;
-
-                if (string.IsNullOrEmpty(nodeName))
-                {
-                    if ((e.Node.Level == NodeLevels.Group && e.Node.Text == newGroup)
-                        || e.Node.Level == NodeLevels.Zone && e.Node.Text == newZone
-                        || e.Node.Level == NodeLevels.Mob && e.Node.Text == newMob)
-                    {
-                        // we don't accept "New Group", "New Mob" or "New Zone". The user must enter something else
-                        DialogResult result = SimpleMessageBox.Show(ActGlobals.oFormActMain, @"Please enter a new name.\line Or press [Cancel] to cancel the add.", "Invalid entry",
-                            MessageBoxButtons.OKCancel);
-                        if (result == DialogResult.OK)
-                            e.Node.BeginEdit();
-                        else
-                        {
-                            // user cancelled
-                            e.Node.EndEdit(true);
-                            e.Node.Remove();
-                        }
-                    }
-                    else
-                    {
-                        // user hit ESC while editing an existing node
-                        // revert to the unedited state
-                        e.Node.EndEdit(true);
-                    }
-                }
-                else
-                {
-                    // user modified the node name
-
-                    if(e.Node.Level == NodeLevels.Group)
-                    {
-                        NoteGroup newGroup = new NoteGroup{ GroupName = nodeName };
-                        if (zoneList.NoteGroups.Contains(newGroup))
-                        {
-                            SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Group Names are not allowed.", "Invalid entry",
-                                MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            e.Node.EndEdit(true);
-                            e.Node.Remove();
-                            autoNodeName = String.Empty;
-                            removed = true;
-                        }
-                        else
-                        {
-                            // group node
-                            if (e.Node.Tag == null)
-                            {
-                                // new group
-                                zoneList.NoteGroups.Add(newGroup);
-                                e.Node.Tag = newGroup;
-                                e.Node.Name = nodeName;
-                            }
-                            else
-                            {
-                                // editing an existing group
-                                NoteGroup noteGroup = e.Node.Tag as NoteGroup;
-                                if (noteGroup != null)
-                                    noteGroup.GroupName = nodeName;
-                            }
-                        }
-                    }
-                    else if (e.Node.Level == NodeLevels.Zone)
-                    {
-                        NoteGroup ng = e.Node.Parent.Tag as NoteGroup;
-                        Zone newZone = new Zone { ZoneName = nodeName };
-                        if (zoneList.Zones.Contains(newZone))
-                        {
-                            SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Zone Names are not allowed.", "Invalid entry",
-                                MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            e.Node.EndEdit(true);
-                            e.Node.Remove();
-                            autoNodeName = String.Empty;
-                            removed = true;
-                        }
-                        else
-                        {
-                            // zone node
-                            if (e.Node.Tag == null)
-                            {
-                                // new zone
-                                zoneList.Zones.Add(newZone);
-                                e.Node.Tag = newZone;
-                                e.Node.Name = nodeName;
-                                if(ng != null)
-                                    ng.Zones.Add(nodeName);
-                            }
-                            else
-                            {
-                                // editing an existing zone
-                                Zone zone = e.Node.Tag as Zone;
-                                if (zone != null)
-                                    zone.ZoneName = nodeName;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // mob node
-                        Zone zone = e.Node.Parent.Tag as Zone;
-                        if (zone != null)
-                        {
-                            Mob newMob = new Mob { MobName = nodeName, KillOrder = zone.Mobs.Count };
-                            if (zone.Mobs.Contains(newMob))
-                            {
-                                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Duplicate Mob Names are not allowed.", "Invalid entry",
-                                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                e.Node.EndEdit(true);
-                                e.Node.Remove();
-                                autoNodeName = String.Empty;
-                                removed = true;
-                            }
-                            else
-                            {
-                                if (e.Node.Tag == null)
-                                {
-                                    // new mob
-                                    zone.Mobs.Add(newMob);
-                                    e.Node.Tag = newMob;
-                                    e.Node.Name = nodeName;
-                                }
-                                else
-                                {
-                                    // editing an existing mob
-                                    Mob mob = e.Node.Tag as Mob;
-                                    if (mob != null)
-                                        mob.MobName = nodeName;
-                                }
-                            }
-                        }
-                    }
-                    if (!removed)
-                    {
-                        treeViewZones.SelectedNode = e.Node;
-                        BuildEnemyList();
-                    }
-                }
-            }
         }
 
         private void treeViewZones_ItemDrag(object sender, ItemDragEventArgs e)
@@ -1806,8 +1922,6 @@ namespace ACT_Notes
             if (!string.IsNullOrEmpty(nameKilled))
             {
                 // see if we have anything for the current zone
-                //TreeNode[] zoneNodes = treeViewZones.Nodes.Find(cleanZone, false);
-                //if (zoneNodes.Length > 0)
                 TreeNode zoneNode = FindZoneNode(cleanZone);
                 if(zoneNode != null)
                 {
@@ -1816,7 +1930,6 @@ namespace ACT_Notes
                     if(zone != null)
                     {
                         // see if we have a mob that matches the passed name
-                        //Mob mob = zone.Mobs.Find(m => m.MobName == nameKilled);
                         Mob mob = null;
                         foreach(Mob m in zone.Mobs)
                         {
@@ -1834,7 +1947,6 @@ namespace ACT_Notes
                             if (next != null)
                             {
                                 // find that mob in the tree
-                                //TreeNode[] mobNodes = zoneNodes[0].Nodes.Find(next.MobName, false);
                                 TreeNode[] mobNodes = zoneNode.Nodes.Find(next.MobName, false);
                                 if (mobNodes.Length > 0)
                                 {
@@ -1953,7 +2065,7 @@ namespace ACT_Notes
 
                 if (clickedZoneNode.Equals(treeViewZones.SelectedNode))
                 {
-                    SaveNote(clickedZoneNode, false);
+                    SaveNote(clickedZoneNode, true);
                 }
 
                 NoteGroup noteGroup = null;
@@ -2076,37 +2188,49 @@ namespace ACT_Notes
                         NoteGroup ng = clickedZoneNode.Tag as NoteGroup;
                         if (ng != null)
                         {
-                            // move the zones to the default group
-                            TreeNode tgn = FindOrCreateDefaultGroupNode();
-                            NoteGroup dng = tgn.Tag as NoteGroup;
-                            dng.Zones.AddRange(ng.Zones);
-                            if(tgn != null)
+                            DialogResult result = DialogResult.Yes;
+                            if (ng.Zones.Count > 0)
+                                result = SimpleMessageBox.Show(ActGlobals.oFormActMain, "Detete group \\b\\line " + ng.GroupName + "\\b0\\line and move all its zones to " + DefaultGroupName, "Delete Group",
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
+                            if (result == DialogResult.Yes)
                             {
-                                int zcount = clickedZoneNode.Nodes.Count;
-                                for (int i = zcount-1; i >= 0; i--)
+                                if(ng.Zones.Count > 0)
                                 {
-                                    TreeNode tn = clickedZoneNode.Nodes[i];
-                                    treeViewZones.Nodes.Remove(tn);
-                                    tgn.Nodes.Add(tn);
+                                    // move the zones to the default group
+                                    TreeNode tgn = FindOrCreateDefaultGroupNode();
+                                    NoteGroup dng = tgn.Tag as NoteGroup;
+                                    dng.Zones.AddRange(ng.Zones);
+                                    if (tgn != null)
+                                    {
+                                        int zcount = clickedZoneNode.Nodes.Count;
+                                        for (int i = zcount - 1; i >= 0; i--)
+                                        {
+                                            TreeNode tn = clickedZoneNode.Nodes[i];
+                                            treeViewZones.Nodes.Remove(tn);
+                                            tgn.Nodes.Add(tn);
+                                        }
+                                    }
                                 }
+                                // remove the old group
+                                ng.Zones.Clear();
+                                zoneList.NoteGroups.Remove(ng);
+                                treeViewZones.Nodes.Remove(clickedZoneNode);
                             }
-
-                            // remove the old group
-                            ng.Zones.Clear();
-                            zoneList.NoteGroups.Remove(ng);
-                            treeViewZones.Nodes.Remove(clickedZoneNode);
                         }
                     }
                     else if (clickedZoneNode.Level == NodeLevels.Zone)
                     {
                         // delete zone
                         string category = clickedZoneNode.Text;
-                        if (SimpleMessageBox.Show(ActGlobals.oFormActMain, "Delete zone '" + category + "' and all its mobs and notes?", "Are you sure?",
+                        if (SimpleMessageBox.Show(ActGlobals.oFormActMain, "Delete zone \\b\\line " + category + "\\b0\\line  and all its mobs and notes?", "Are you sure?",
                             MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
                         {
                             Zone zone = clickedZoneNode.Tag as Zone;
+                            NoteGroup ng = clickedZoneNode.Parent.Tag as NoteGroup;
                             if (zone != null)
                             {
+                                if (ng != null)
+                                    ng.Zones.Remove(zone.ZoneName);
                                 zoneList.Zones.Remove(zone);
                                 treeViewZones.Nodes.Remove(clickedZoneNode);
                             }
@@ -2148,8 +2272,10 @@ namespace ACT_Notes
                 {
                     RichTextBox rtb = new RichTextBox();
 
-                    // zone name
-                    if(clickedZoneNode.Level == NodeLevels.Zone)
+                    // header
+                    if (clickedZoneNode.Level == NodeLevels.Group)
+                        rtb.Text = clickedZoneNode.Text;
+                    else if(clickedZoneNode.Level == NodeLevels.Zone)
                         rtb.Text = clickedZoneNode.Text + "\n\n";
                     else if(clickedZoneNode.Level == NodeLevels.Mob)
                         rtb.Text = clickedZoneNode.Parent.Text + "\n\n";
@@ -2159,45 +2285,155 @@ namespace ACT_Notes
                     newFontStyle = rtb.SelectionFont.Style | FontStyle.Bold | FontStyle.Underline;
                     rtb.SelectionFont = new Font(currentFont.FontFamily, currentFont.Size, newFontStyle);
 
-                    if (clickedZoneNode.Level == NodeLevels.Zone)
+                    if(clickedZoneNode.Level == NodeLevels.Group)
                     {
-                        // export the whole zone
+                        // export the group and its children
+                        ExportGroupRtf(rtb, clickedZoneNode);
+                    }
+                    else if (clickedZoneNode.Level == NodeLevels.Zone)
+                    {
+                        // export the zone and its mobs
                         Zone zone = clickedZoneNode.Tag as Zone;
                         if (zone != null)
                         {
-                            // zone note
-                            if (zone.Notes != null)
-                            {
-                                rtb.Select(rtb.TextLength, 0);
-                                rtb.SelectedRtf = @"{\rtf1\ansi\par\pard " + zone.Notes + @"\par}";
-                            }
-
-                            // mobs
-                            foreach (Mob mob in zone.Mobs)
-                            {
-                                rtb.Select(rtb.TextLength, 0);
-                                rtb.SelectedRtf = @"{\rtf1\ansi\pard\b " + mob.MobName + @"\b0\par}";
-
-                                rtb.Select(rtb.TextLength, 0);
-                                rtb.SelectedRtf = @"{\rtf1\ansi\par " + mob.Notes + @"\par}";
-
-                            }
+                            ExportZoneRtf(rtb, zone);
                         }
-                    } // end of zone save
+                    }
                     else if (clickedZoneNode.Level == NodeLevels.Mob)
                     {
                         // mob note
                         Mob mob = clickedZoneNode.Tag as Mob;
                         if (mob != null)
                         {
-                            rtb.Select(rtb.TextLength, 0);
-                            rtb.SelectedRtf = @"{\rtf1\ansi\pard\b " + mob.MobName + @"\b0\par}";
-
-                            rtb.Select(rtb.TextLength, 0);
-                            rtb.SelectedRtf = @"{\rtf1\ansi\par " + mob.Notes + @"\par}";
+                            ExportMobRtf(rtb, mob);
                         }
                     }
-                    File.WriteAllText(saveFileDialog1.FileName, rtb.Rtf);
+                    try
+                    {
+                        File.WriteAllText(saveFileDialog1.FileName, rtb.Rtf);
+                    }
+                    catch (Exception exrtfex)
+                    {
+                        SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Could not write file {saveFileDialog1.FileName}: {exrtfex.Message}");
+                    }
+                }
+            }
+        }
+
+        private void ExportMobRtf(RichTextBox rtb, Mob mob)
+        {
+            if (mob != null)
+            {
+                rtb.Select(rtb.TextLength, 0);
+                rtb.SelectedRtf = @"{\rtf1\ansi\pard\b " + mob.MobName + @"\b0\par}";
+
+                rtb.Select(rtb.TextLength, 0);
+                rtb.SelectedRtf = @"{\rtf1\ansi\par " + mob.Notes + @"\par}";
+            }
+        }
+
+        private void ExportZoneRtf(RichTextBox rtb, Zone zone)
+        {
+            if (zone != null)
+            {
+                rtb.Select(rtb.TextLength, 0);
+                rtb.SelectedRtf = @"{\rtf1\ansi\pard\b " + zone.ZoneName + @"\b0\par}";
+
+                // zone note
+                rtb.Select(rtb.TextLength, 0);
+                if (zone.Notes != null)
+                    rtb.SelectedRtf = @"{\rtf1\ansi\par\pard " + zone.Notes + @"\par}";
+                else
+                    rtb.SelectedRtf = @"{\rtf1\ansi\par}";
+
+                // mobs
+                foreach (Mob mob in zone.Mobs)
+                {
+                    ExportMobRtf(rtb, mob);
+                }
+            }
+
+        }
+
+        private void ExportGroupRtf(RichTextBox rtb, TreeNode groupNode)
+        {
+            // group note
+            NoteGroup ng = groupNode.Tag as NoteGroup;
+            if (ng != null)
+            {
+                rtb.Select(rtb.TextLength, 0);
+                rtb.SelectedRtf = @"{\rtf1\ansi\par\pard " + ng.Notes + @"\par}";
+            }
+
+            foreach (TreeNode tn in groupNode.Nodes)
+            {
+                Zone zone = tn.Tag as Zone;
+                if(zone != null)
+                    ExportZoneRtf(rtb, zone);
+            }
+        }
+
+        private void importRTFToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (clickedZoneNode != null)
+            {
+                if (firstExport)
+                {
+                    saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    firstExport = false;
+                }
+                else
+                    saveFileDialog1.InitialDirectory = null; // will use "recents"
+
+                if (openFileDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    RichTextBox rtb = new RichTextBox();
+                    string existingNote = string.Empty;
+                    NoteGroup ng = null;
+                    Zone zone = null;
+                    Mob mob = null;
+                    if (clickedZoneNode.Level == NodeLevels.Group)
+                    {
+                        ng = clickedZoneNode.Tag as NoteGroup;
+                        existingNote = ng.Notes;
+                    }
+                    else if(clickedZoneNode.Level == NodeLevels.Zone)
+                    {
+                        zone = clickedZoneNode.Tag as Zone;
+                        existingNote = zone.Notes;
+                    }
+                    else if(clickedZoneNode.Level == NodeLevels.Mob)
+                    {
+                        mob = clickedZoneNode.Tag as Mob;
+                        existingNote = mob.Notes;
+                    }
+
+                    try
+                    {
+                        string incomingNote = File.ReadAllText(openFileDialog1.FileName);
+                        if (!string.IsNullOrEmpty(existingNote))
+                        {
+                            rtb.Rtf = existingNote;
+                        }
+                        rtb.Select(rtb.TextLength, 0);
+                        rtb.SelectedRtf = incomingNote;
+                    }
+                    catch (Exception rdrtfex)
+                    {
+                        SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Could not read {openFileDialog1.FileName}: {rdrtfex.Message}", "File Error");
+                    }
+
+                    if (ng != null)
+                        ng.Notes = rtb.Rtf;
+                    else if (zone != null)
+                        zone.Notes = rtb.Rtf;
+                    else if (mob != null)
+                        mob.Notes = rtb.Rtf;
+
+                    if (treeViewZones.SelectedNode == clickedZoneNode)
+                        treeViewZones.SelectedNode = null; //force an update
+                    clickedZoneNode.EnsureVisible();
+                    treeViewZones.SelectedNode = clickedZoneNode;
                 }
             }
         }
@@ -2289,7 +2525,43 @@ namespace ACT_Notes
                     //set the splitter only on the first time shown
                     if (zoneList.SplitterLoc > 0)
                         splitContainer1.SplitterDistance = zoneList.SplitterLoc;
+
+                    VersionUpdateNotice();
+
                     neverBeenVisible = false;
+                }
+            }
+        }
+
+        private void VersionUpdateNotice()
+        {
+            Version configVersion = new Version(zoneList.Version);
+            bool needSep = configVersion <= new Version("1.3.0.0");
+            CommaNamesForm commaNamesForm = new CommaNamesForm();
+            bool needForm = false;
+            foreach (Zone zone in zoneList.Zones)
+            {
+                if (needSep)
+                {
+                    string groupname = zoneList.NoteGroups.GetGroupName(zone.ZoneName);
+                    // find the old name separator
+                    foreach (Mob mob in zone.Mobs)
+                    {
+                        if (mob.MobName.Contains(","))
+                        {
+                            commaNamesForm.AddName(groupname, zone.ZoneName, mob.MobName);
+                            needForm = true;
+                        }
+                    }
+                }
+            }
+            if (needSep)
+            {
+                Version localVersion = this.GetType().Assembly.GetName().Version;
+                zoneList.Version = localVersion.ToString();
+                if (needForm)
+                {
+                    commaNamesForm.Show(ActGlobals.oFormActMain);
                 }
             }
         }
@@ -2313,7 +2585,6 @@ namespace ACT_Notes
                     buttonFindNext.Enabled = false;
                     if(treeViewZones.SelectedNode != null)
                     {
-                        //string nodeName = treeViewZones.SelectedNode.Text;
                         string searchText = textBoxEditFind.Text.ToLower();
                         bool found = FindInNote(treeViewZones.SelectedNode, searchText, richEditCtrl1.rtbDoc.Rtf);
                         if (!found)
@@ -2327,8 +2598,7 @@ namespace ACT_Notes
                 {
                     buttonFindNext.Enabled = true;
                     foundZoneIndex = 0;
-                    foundMobIndex = 0;
-                    foundZoneNeedMobs = false;
+                    GetAllTreeNodes(treeViewZones); //populate foundNodes in treeview order (i.e. properly sorted)
                     FindNextText();
                 }
             }
@@ -2339,59 +2609,60 @@ namespace ACT_Notes
             }
         }
 
+        private void AddNodeRecursive(TreeNode treeNode)
+        {
+            foundNodes.Add(treeNode);
+
+            // Visit each node recursively.  
+            foreach (TreeNode tn in treeNode.Nodes)
+            {
+                AddNodeRecursive(tn);
+            }
+        }
+
+        private void GetAllTreeNodes(TreeView treeView)
+        {
+            foundNodes.Clear();
+            foreach (TreeNode n in treeView.Nodes)
+            {
+                AddNodeRecursive(n);
+            }
+        }
+
         private void FindNextText()
         {
             string searchText = textBoxEditFind.Text.ToLower();
             bool found = false;
-            for (; foundZoneIndex < zoneList.Zones.Count; foundZoneIndex++)
+            for (; foundZoneIndex < foundNodes.Count && !found; foundZoneIndex++)
             {
-                Zone zone = zoneList.Zones[foundZoneIndex];
-                if (zone.Notes != null && !foundZoneNeedMobs)
+                TreeNode node = foundNodes[foundZoneIndex];
+
+                if(node.Level == NodeLevels.Group)
                 {
-                    // search in the zone note
-                    //TreeNode[] nodes = treeViewZones.Nodes.Find(zone.ZoneName, true);
-                    //if(nodes.Length > 0)
-                    TreeNode node = FindZoneNode(zone.ZoneName);
-                    if(node != null)
+                    NoteGroup ng = node.Tag as NoteGroup;
+                    if(ng != null && !string.IsNullOrEmpty(ng.Notes))
                     {
-                        //found = FindInNote(nodes[0], searchText, zone.Notes);
-                        found = FindInNote(node, searchText, zone.Notes);
-                        if (found)
-                        {
-                            foundZoneNeedMobs = true;
-                            break;
-                        }
+                        found = FindInNote(node, searchText, ng.Notes);
                     }
                 }
-                if (!found && zone.Mobs.Count > 0)
+                else if(node.Level == NodeLevels.Zone)
+                {
+                    Zone zone = node.Tag as Zone;
+                    // search in the zone note
+                    if(zone != null && !string.IsNullOrEmpty(zone.Notes))
+                    {
+                        found = FindInNote(node, searchText, zone.Notes);
+                    }
+                }
+                else if(node.Level == NodeLevels.Mob)
                 {
                     // search in this zone's mob notes
-                    //TreeNode[] parent = treeViewZones.Nodes.Find(zone.ZoneName, true);
-                    //if(parent.Length > 0)
-                    TreeNode parent = FindZoneNode(zone.ZoneName);
-                    if(parent != null)
+                    Mob mob = node.Tag as Mob;
+                    if(mob != null && !string.IsNullOrEmpty(mob.Notes))
                     {
-                        for (; foundMobIndex < zone.Mobs.Count; foundMobIndex++)
-                        {
-                            Mob mob = zone.Mobs[foundMobIndex];
-                            //TreeNode[] nodes = parent[0].Nodes.Find(mob.MobName, true);
-                            TreeNode[] nodes = parent.Nodes.Find(mob.MobName, true);
-                            if (nodes.Length > 0)
-                            {
-                                found = FindInNote(nodes[0], searchText, mob.Notes);
-                                if (found)
-                                {
-                                    foundMobIndex++; // find-next will start with the next mob
-                                    break;
-                                }
-                            }
-                        }
+                        found = FindInNote(node, searchText, mob.Notes);
                     }
                 }
-                if (found)
-                    break;
-                foundZoneNeedMobs = false;
-                foundMobIndex = 0;
             }
             if (!found)
             {
@@ -2404,11 +2675,17 @@ namespace ACT_Notes
         {
             bool found = false;
             int startIndex = 0;
+
             // use a local RTB since the note we are searching may not be visible (yet)
             RichTextBox rtb = new RichTextBox();
             rtb.Rtf = note;
 
             UnHighlightFound();
+
+            //we only need to continue if the text itself contains the search term
+            if (rtb.Find(searchText, 0, RichTextBoxFinds.None) == -1)
+                return false;
+
             bool sameNode = treeViewZones.SelectedNode == node;
             if (sameNode)
             {
@@ -2520,6 +2797,7 @@ namespace ACT_Notes
 
         private void SaveNote(TreeNode node, bool saveToDisk)
         {
+            
             if (node != null)
             {
                 // remove any "find" highlights before we save it
@@ -2805,45 +3083,50 @@ namespace ACT_Notes
             }
         }
 
-        private Zone ZoneFromSelectedNode()
+        private void SavePasteChoice(Zone.PasteType zpt)
         {
-            Zone zone = null;
-            if(treeViewZones.SelectedNode !=null)
+            TreeNode tn = treeViewZones.SelectedNode;
+            if(tn !=null)
             {
-                if(treeViewZones.SelectedNode.Parent != null)
-                    zone = treeViewZones.SelectedNode.Parent.Tag as Zone;
-                else
-                    zone = treeViewZones.SelectedNode.Tag as Zone;
+                if (tn.Level == NodeLevels.Group)
+                {
+                    NoteGroup ng = tn.Tag as NoteGroup;
+                    if (ng != null)
+                        ng.Paste = zpt;
+                }
+                else if (tn.Level == NodeLevels.Mob)
+                {
+                    Zone zone = tn.Parent.Tag as Zone;
+                    if (zone != null)
+                        zone.Paste = zpt;
+                }
+                else if (tn.Level == NodeLevels.Zone)
+                {
+                    Zone zone = tn.Tag as Zone;
+                    if (zone != null)
+                        zone.Paste = zpt;
+                }
             }
-            return zone;
         }
 
         private void radioButtonAppend_Click(object sender, EventArgs e)
         {
-            Zone zone = ZoneFromSelectedNode();
-            if(zone != null)
-                zone.Paste = Zone.PasteType.Append;
+            SavePasteChoice(Zone.PasteType.Append);
         }
 
         private void radioButtonReplace_Click(object sender, EventArgs e)
         {
-            Zone zone = ZoneFromSelectedNode();
-            if (zone != null)
-                zone.Paste = Zone.PasteType.Replace;
+            SavePasteChoice(Zone.PasteType.Replace);
         }
 
         private void radioButtonAsk_Click(object sender, EventArgs e)
         {
-            Zone zone = ZoneFromSelectedNode();
-            if (zone != null)
-                zone.Paste = Zone.PasteType.Ask;
+            SavePasteChoice(Zone.PasteType.Ask);
         }
 
         private void radioButtonAccept_Click(object sender, EventArgs e)
         {
-            Zone zone = ZoneFromSelectedNode();
-            if (zone != null)
-                zone.Paste = Zone.PasteType.Accept;
+            SavePasteChoice(Zone.PasteType.Accept);
         }
 
         #endregion Editor Panel

@@ -219,15 +219,15 @@ namespace ACT_Notes
 
         private void tbrIndent_Click(object sender, EventArgs e)
         {
-            rtbDoc.SelectionIndent += rtbDoc.IndentTwips;
+            rtbDoc.SelectionIndent += rtbDoc.IndentPixels;
             if (rtbDoc.SelectionNumbered)
                 rtbDoc.EnableListing();
         }
 
         private void tbrOutdent_Click(object sender, EventArgs e)
         {
-            if (rtbDoc.SelectionIndent >= rtbDoc.IndentTwips)
-                rtbDoc.SelectionIndent -= rtbDoc.IndentTwips;
+            if (rtbDoc.SelectionIndent >= rtbDoc.IndentPixels)
+                rtbDoc.SelectionIndent -= rtbDoc.IndentPixels;
             else
                 rtbDoc.SelectionIndent = 0;
 
@@ -349,6 +349,7 @@ namespace ACT_Notes
 
         private void rtbDoc_SelectionChanged(object sender, EventArgs e)
         {
+            RichTextBoxEx.RichTextBoxInfo info = rtbDoc.GetListingInfo();
             if (rtbDoc.SelectionFont != null)
             {
                 tbrBold.Checked = rtbDoc.SelectionFont.Bold;

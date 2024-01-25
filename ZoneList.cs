@@ -153,7 +153,7 @@ namespace ACT_Notes
         public PasteType Paste { get; set; }
 
         [XmlAttribute]
-        public string Prefix { get; set; } = "g";
+        public string Prefix { get; set; }
 
 
         [XmlAttribute]
