@@ -1,31 +1,30 @@
-﻿using System;
+﻿using Advanced_Combat_Tracker;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
+using System.Diagnostics;
 using System.Drawing;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace ACT_Notes
 {
     public partial class AlertForm : Form
     {
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
         public List<string> Alerts = new List<string>();
         public int labelHeight = 17;
         public event EventHandler FormMoved; //callback
 
-        // animation modes
-        const int HorzPositive = 0X1;
-        const int HorzNegative = 0X2;
-        const int VertPositive = 0X4;
-        const int VertNegative = 0X8;
-        const int CENTER = 0X10;
-        const int BLEND = 0X80000;
         System.Timers.Timer timer = new System.Timers.Timer();
         int timerTicks;
+
+        private IntPtr previousWindowHandle = IntPtr.Zero;
 
         // form drag
         bool mouseDown;
@@ -38,7 +37,12 @@ namespace ACT_Notes
                 if (isFirst)
                 {
                     this.Font = new Font(this.Font.Name, this.Font.SizeInPoints, FontStyle.Underline);
+                    this.ForeColor = Color.Blue;
+                    this.Cursor = Cursors.Hand;
+                    this.Tag = true;
                 }
+                else
+                    this.Tag= false;
                 this.Text = text;
                 this.AutoSize = true;
                 this.Location = new Point(5, form.labelHeight);
@@ -93,6 +97,12 @@ namespace ACT_Notes
             }
         }
 
+        private void AlertForm_Shown(object sender, EventArgs e)
+        {
+            // save whoever had focus before us (probably the game)
+            previousWindowHandle = GetForegroundWindow();
+        }
+
         private void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             if(this.BackColor != Color.LawnGreen)
@@ -130,6 +140,49 @@ namespace ACT_Notes
 
         private void AlertForm_MouseUp(object sender, MouseEventArgs e)
         {
+            Label label = sender as Label;
+            if (label != null && (bool)label.Tag == true)
+            {
+                // top label is a click-able ACT activator
+                List<ActPluginData> plugins = ActGlobals.oFormActMain.ActPlugins;
+                for (int i = 0; i < plugins.Count; i++)
+                {
+                    ActPluginData plugin = plugins[i];
+                    if (plugin.lblPluginTitle.Text == "Notes.dll")
+                    {
+                        //Debug.WriteLine("activating notes plugin tab");
+                        Notes notes = (Notes)plugin.pluginObj;
+                        TabControl pluginsTabControl = notes.Parent.Parent as TabControl;
+                        if (pluginsTabControl != null)
+                        {
+                            // select the Notes tab in the plugins tabs
+                            pluginsTabControl.SelectedIndex = i;
+
+                            TabControl mainTabControl = pluginsTabControl.Parent.Parent as TabControl;
+                            if (mainTabControl != null)
+                            {
+                                for (int j = 0; j < mainTabControl.TabPages.Count; j++)
+                                {
+                                    var tab = mainTabControl.TabPages[j];
+                                    if (tab.Text == "Plugins")
+                                    {
+                                        // select the Plugins tab in ACT's tabs
+                                        mainTabControl.SelectedIndex = j;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+                if (previousWindowHandle != IntPtr.Zero)
+                {
+                    // restore focus to the previous window, likely the game
+                    SetForegroundWindow(previousWindowHandle);
+                }
+            }
+
             mouseDown = false;
             OnMoveDone(e);
         }

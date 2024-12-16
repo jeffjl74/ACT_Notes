@@ -58,6 +58,7 @@ namespace ACT_Notes
             this.copyToXMLToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.copyEntireZoneToXMLToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.skipKillCheckToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.setAlertDelaysToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -67,12 +68,16 @@ namespace ACT_Notes
             this.panel1 = new System.Windows.Forms.Panel();
             this.linkLabel1 = new System.Windows.Forms.LinkLabel();
             this.label2 = new System.Windows.Forms.Label();
-            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
-            this.importRTFToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.saveFileDialogRtf = new System.Windows.Forms.SaveFileDialog();
+            this.openFileDialogRtf = new System.Windows.Forms.OpenFileDialog();
+            this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
+            this.exportZIPToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importZIPToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.textBoxZoneFind = new ACT_Notes.TextBoxX();
             this.richEditCtrl1 = new ACT_Notes.EditCtrl();
             this.textBoxEditFind = new ACT_Notes.TextBoxX();
+            this.openFileDialogZip = new System.Windows.Forms.OpenFileDialog();
+            this.saveFileDialogZip = new System.Windows.Forms.SaveFileDialog();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -357,15 +362,18 @@ namespace ACT_Notes
             this.contextMenuStripZone.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.copyToXMLToolStripMenuItem,
             this.copyEntireZoneToXMLToolStripMenuItem,
+            this.toolStripSeparator3,
             this.exportRTFToolStripMenuItem,
             this.importRTFToolStripMenuItem,
+            this.exportZIPToolStripMenuItem,
+            this.importZIPToolStripMenuItem,
             this.toolStripSeparator1,
             this.skipKillCheckToolStripMenuItem,
             this.setAlertDelaysToolStripMenuItem,
             this.toolStripSeparator2,
             this.deleteToolStripMenuItem});
             this.contextMenuStripZone.Name = "contextMenuStrip2";
-            this.contextMenuStripZone.Size = new System.Drawing.Size(216, 170);
+            this.contextMenuStripZone.Size = new System.Drawing.Size(216, 220);
             this.contextMenuStripZone.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStripZone_Opening);
             // 
             // copyToXMLToolStripMenuItem
@@ -390,6 +398,13 @@ namespace ACT_Notes
             this.exportRTFToolStripMenuItem.Text = "Export RTF...";
             this.exportRTFToolStripMenuItem.ToolTipText = "Export to a WordPad file";
             this.exportRTFToolStripMenuItem.Click += new System.EventHandler(this.exportRTFToolStripMenuItem_Click);
+            // 
+            // importRTFToolStripMenuItem
+            // 
+            this.importRTFToolStripMenuItem.Name = "importRTFToolStripMenuItem";
+            this.importRTFToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
+            this.importRTFToolStripMenuItem.Text = "Import RTF...";
+            this.importRTFToolStripMenuItem.Click += new System.EventHandler(this.importRTFToolStripMenuItem_Click);
             // 
             // toolStripSeparator1
             // 
@@ -467,24 +482,36 @@ namespace ACT_Notes
             this.label2.TabIndex = 1;
             this.label2.Text = "Right-click a tree node for options.";
             // 
-            // saveFileDialog1
+            // saveFileDialogRtf
             // 
-            this.saveFileDialog1.DefaultExt = "rtf";
-            this.saveFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
-            this.saveFileDialog1.RestoreDirectory = true;
+            this.saveFileDialogRtf.DefaultExt = "rtf";
+            this.saveFileDialogRtf.Filter = "WordPad files|*.rtf|All files|*.*";
+            this.saveFileDialogRtf.RestoreDirectory = true;
             // 
-            // importRTFToolStripMenuItem
+            // openFileDialogRtf
             // 
-            this.importRTFToolStripMenuItem.Name = "importRTFToolStripMenuItem";
-            this.importRTFToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
-            this.importRTFToolStripMenuItem.Text = "Import RTF...";
-            this.importRTFToolStripMenuItem.Click += new System.EventHandler(this.importRTFToolStripMenuItem_Click);
+            this.openFileDialogRtf.DefaultExt = "rtf";
+            this.openFileDialogRtf.Filter = "WordPad files|*.rtf|All files|*.*";
+            this.openFileDialogRtf.RestoreDirectory = true;
             // 
-            // openFileDialog1
+            // toolStripSeparator3
             // 
-            this.openFileDialog1.DefaultExt = "rtf";
-            this.openFileDialog1.Filter = "WordPad files|*.rtf|All files|*.*";
-            this.openFileDialog1.RestoreDirectory = true;
+            this.toolStripSeparator3.Name = "toolStripSeparator3";
+            this.toolStripSeparator3.Size = new System.Drawing.Size(212, 6);
+            // 
+            // exportZIPToolStripMenuItem
+            // 
+            this.exportZIPToolStripMenuItem.Name = "exportZIPToolStripMenuItem";
+            this.exportZIPToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
+            this.exportZIPToolStripMenuItem.Text = "Export to ZIP...";
+            this.exportZIPToolStripMenuItem.Click += new System.EventHandler(this.exportZIPToolStripMenuItem_Click);
+            // 
+            // importZIPToolStripMenuItem
+            // 
+            this.importZIPToolStripMenuItem.Name = "importZIPToolStripMenuItem";
+            this.importZIPToolStripMenuItem.Size = new System.Drawing.Size(215, 22);
+            this.importZIPToolStripMenuItem.Text = "Import ZIP...";
+            this.importZIPToolStripMenuItem.Click += new System.EventHandler(this.importZIPToolStripMenuItem_Click);
             // 
             // textBoxZoneFind
             // 
@@ -520,6 +547,16 @@ namespace ACT_Notes
         "name");
             this.textBoxEditFind.TextChanged += new System.EventHandler(this.textBoxTextFind_TextChanged);
             this.textBoxEditFind.KeyDown += new System.Windows.Forms.KeyEventHandler(this.textBoxEditFind_KeyDown);
+            // 
+            // openFileDialogZip
+            // 
+            this.openFileDialogZip.DefaultExt = "zip";
+            this.openFileDialogZip.Filter = "zip files|*.zip|All files|*.*";
+            // 
+            // saveFileDialogZip
+            // 
+            this.saveFileDialogZip.DefaultExt = "zip";
+            this.saveFileDialogZip.Filter = "zip files|*.zip|All files|*.*";
             // 
             // Notes
             // 
@@ -585,13 +622,18 @@ namespace ACT_Notes
         private RadioButton radioButtonAppend;
         private RadioButton radioButtonAccept;
         private ToolStripMenuItem exportRTFToolStripMenuItem;
-        private SaveFileDialog saveFileDialog1;
+        private SaveFileDialog saveFileDialogRtf;
         private ToolStripMenuItem setAlertDelaysToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator2;
         private ToolStripMenuItem copyEntireZoneToXMLToolStripMenuItem;
         private ToolStripMenuItem skipKillCheckToolStripMenuItem;
         private Button buttonAddGroup;
         private ToolStripMenuItem importRTFToolStripMenuItem;
-        private OpenFileDialog openFileDialog1;
+        private OpenFileDialog openFileDialogRtf;
+        private ToolStripSeparator toolStripSeparator3;
+        private ToolStripMenuItem exportZIPToolStripMenuItem;
+        private ToolStripMenuItem importZIPToolStripMenuItem;
+        private OpenFileDialog openFileDialogZip;
+        private SaveFileDialog saveFileDialogZip;
     }
 }

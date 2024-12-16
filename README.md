@@ -12,15 +12,10 @@ An example is shown below.
 ![Overview](images/Overview.png)
 
 ## Version Notes
-_Version 1.4.0_
-* Added another folder level to help organize notes.
-* Added an option to advance to the next note at [combat end](#monitoring) regardless of the outcome of the fight (to workaround EQII death reporting inconsistencies). This changes [alert](#alerts) behaviour for a failed fight. Default is enabled.
-* Added [very simplistic numbered lists](#adding-notes).
-* Added a way to add a mob name to the list using [EQII in game commands](#adding-from-eq2-game-chat).
-* Added `Import RTF` context menu choice.
-* Fix to activate an alert even if is is the very last thing in a note.
-* Fix alert window auto-sizing.
-* Changed the encounter name delimiter from comma to semicolon to accomodate individual mob names that contain commas, like `Sleujess, Pride Guardian`.
+_Version 1.5.0_
+* Added `Export to ZIP...` and `Import ZIP...` to the [context menu](#share-outside-of-the-game) on the group tree.
+* The mob name in the [alert](#alerts) pop-up can now be clicked to activate the Notes tab in ACT.
+* Fixed an encode/decode bug around certain end-of-line occurrences.
 
 ## Adding Tree Folders
 The **[Add Group]** button creates a new top level "zone group" folder. 
@@ -119,29 +114,26 @@ The plugin recognizes alert tags using just the three predefined colors. Other t
 The plugin only searches the first section if there are un-accepted [replacement notes](#previous-note-replacement).
 
 ## Sharing Notes
-The `Copy to XML` menus allow sharing notes in ACT with other users of the plugin. The `Export RTF` menu allows exporting the notes out of ACT to a WordPad/MSWord file. The `Import RTF` imports an RTF file into the note for the selected folder.
+The `Copy to XML` menus allow sharing notes in the game with other players using the plugin. The `Export to ZIP...` menu creates a ZIP file for the clicked zone or group.  The `Import ZIP...` menu imports an exported file.  The `Export RTF` menu allows exporting the notes out of ACT to a WordPad/MSWord file. The `Import RTF` imports an RTF file into the note for the selected folder.
 
 Right-click the group name in the tree to share a group. Right-click the zone name in the tree to share a zone. Right-click a mob name in the tree to share a mob.
 
+### Share In-Game
 The right-click menu offers a `Copy to XML` choice which only copies the selected item. For the group level, a note can only be shared if the player receiving the note already has a group with that same name.
 
 The right-click menu for groups and zones offers a `Copy Entire Group to XML` or `Copy Entire Zone to XML`.  These add the selected item and all child items' notes to the dialog's share list. The received notes may get scrambled if the player(s) receiving multiple notes from these commands are not running plugin version 1.3 or newer, or if the sending player is not whitelisted by the receiver. If one or the other of those is not true, the best chance of success is for the receiver to accept the data from ACT's *Options, Configuration Import/Export, XML Share Snippets* yellow window in the order in the window from top to bottom.
 
-The notes are stored as Rich Text Format (RTF). This format provides the capability to change the font, color, bullets, etc, but adds overhead.
-
-Wordpad and Microsoft Word can also handle RTF files. To create an RTF file from ACT Notes, right-click a folder in the left-hand panel and choose `Export to RTF...`. The selected folder and all of its children (if any) will be exported.
-
-### Share Channel
+#### Share Channel
 For the first XML share in a zone, the plugin guesses whether you are likely in a group or raid from the selected zone name
 and chooses the supposed prefix, `/g` or `/r`. This can be changed by selecting the appropriate button.
 To paste in a different channel, use the `custom` choice. For example, if you wanted to paste to the guild, you would select the `custom` button and enter `/gu` in the textbox. The selected prefix is saved for each group and zone.
 
-### Note Segmenting
+#### Note Segmenting
 EQII can only paste around 250 characters at a time in a chat window, and allows about 1000 characters per line and 16 lines in a macro. Even a small shared note requires multiple sections.
 
 The plugin automatically breaks a note into appropriate sharable sizes.
 
-There are two methods for sharing a note. The first method is similar to how a trigger is shared in ACT. The second method uses EQII macros.
+There are two methods for sharing a note in-game. The first method is similar to how a trigger is shared in ACT. The second method uses EQII macros.
 
 The plugin searches for an EQII game window when it opens the share dialog. If a game window is found, the dialog shows the macro command list by default. The clipboard copy list can be shown by pressing the __[Copy]__ button.
 
@@ -153,7 +145,7 @@ Below is an example that results in one macro when compressed. This particular n
 
 ![icon](images/big-image-sections.png)
 
-#### Method 1: Paste Share
+##### Method 1: Paste Share
 To paste into a chat window, the sender of the note needs to copy each section from the plugin using the plugin's **[Copy]** button and then use `Ctrl-V` to paste it in the chat window. In the example below, three sections are required. The `/g` selection prefixes the section with the groupsay command. 
 
 When the **Game Window:** is not blank, pressing the **[Macro]** or **[Copy]** button activates the selected game window. Once the game window is activated, the chat box can be activated by pressing the `Enter` key. (`Enter` is the default key binding. Use whatever key is set in _Options->Controls->Chat Keys->Begin Chat_.) The user can then press `Ctrl-v` to paste and `Enter` to complete the command.
@@ -172,7 +164,7 @@ This process is illustrated below.
 
 ![copy-paste](images/paste.gif)
 
-#### Method 2: Macro Share
+##### Method 2: Macro Share
 The plugin's **[Macro]** button generally takes fewer steps to share a note. Pressing the **[Macro]** button generates enough text files to share the note. The text file names follow the format `note-macroX.txt` where `X` is a number starting with 1 and incrementing until enough files are created to share the entire note, e.g. the first 16,000 or so characters would be shared using the macro file `note-macro1.txt`.
 
 When the plugin finds an EQII game window, the share dialog initially opens with the list of macro commands.
@@ -191,14 +183,14 @@ This process is illustrated below for a note with compressed images.
 
 ![macro](images/macro.gif)
 
-#### Section Reception
+##### Section Reception
 The receiver of the note needs to accept each section. A single macro can contain up to 16 sections.
 
 If lots of sections arrive faster than the receiver can click the ACT `Add Now` button for XML shares,
 they may still be accepted on ACT's `Options` tab, `Configuration Import/Export` heading,
 `XML Share Snippets` section. But sections must be accepted in the order they are received. Select each one listed in the yellow box and press the **[Import Above Data]** under the white box. **Note:** the `Add Now` button can be bypassed for trusted players by adding them to the `Automatically accept data from` in the green list.
 
-### Previous Note Replacement
+#### Previous Note Replacement
 If the receiving player does not have an existing note for the incoming zone or mob, 
 the plugin creates the appropriate entities.
 
@@ -217,7 +209,7 @@ The plugin provides several options at the bottom of the edit pane for receiving
 
 This setting is saved for each group and zone.
 
-### Compare Preexisting and Received Notes
+#### Compare Preexisting and Received Notes
 When an incoming note is appended to an existing note, a delimiter line is added between the old note and the new one and the **[Compare]** button becomes active. Pressing the **[Compare]** button opens a new window showing the difference between the text above the first delimiter and the text below the first delimiter. If there are multiple append delimiters, the comparison is only between the first two parts.
 
 The comparison shows the ***text*** differences at the line level. Formatting is ignored. Multiple spaces are ignored. Character case is ignored. 
@@ -231,5 +223,16 @@ The **[Discard]** button removes the received note from the editor. The delimite
 An example is shown below:
 
 ![compare](images/compare.png)
+
+### Share Outside of the Game
+The notes are stored as Rich Text Format (RTF). This format provides the capability to change the font, color, bullets, etc.
+
+Wordpad and Microsoft Word can also handle RTF files. To create an RTF file from ACT Notes, right-click a folder in the left-hand panel and choose `Export to RTF...`. The selected folder and all of its children (if any) will be exported.
+
+The plugin can also write and read a ZIP file.
+
+Right-click on the appropriate group, zone or mob and choose `Export to ZIP...` to create a ZIP file for that entity. Share that file with another plugin user via any standard file sharing method, e.g. e-mail or web page.
+
+Right-click anywhere in the tree and choose `Import ZIP...' to import a shared ZIP file. The result will be just like receiving an in-game share.
 
 

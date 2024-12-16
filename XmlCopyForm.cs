@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.IO;
-using System.Security.Policy;
 using System.Text;
 using System.Windows.Forms;
 using System.Globalization;
@@ -23,7 +22,7 @@ namespace ACT_Notes
         Mob _mob;
         List<string> chatSnippets;
         int nextSectionIndex = 0;
-        const string doFileName = "note-macro{0}.txt";
+        public static string doFileName = "note-macro{0}.txt";
         bool loading = true;
         bool preIncremet = false;
         bool autoIncrementing = false;
@@ -135,6 +134,19 @@ namespace ACT_Notes
             loading = false;
         }
 
+        public int BuildMacroFiles()
+        {
+            buttonMacro_Click(null, null);
+            return listBox1.Items.Count;
+        }
+
+        public static string RemoveEndLines(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return "";
+            return input.Replace("\\par\r\n", @"\par ").Replace("\\par\r", @"\par ").Replace("\\par\n", @"\par ").Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+        }
+
         private List<string> Breakup(Zone zone, Mob mob, int maxLen)
         {
             List<string> snippets = new List<string>();
@@ -147,7 +159,7 @@ namespace ACT_Notes
                 orig = zone.Notes;
             else
                 orig = _noteGroup.Notes;
-            noBreaks = orig.Replace("\\par\r\n","\\par ").Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+            noBreaks = RemoveEndLines(orig);
             compressed = false;
             if(noBreaks.Contains(@"\pict") && checkBoxCompress.Checked)
             {

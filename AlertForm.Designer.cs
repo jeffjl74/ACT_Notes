@@ -61,6 +61,7 @@
             this.ShowInTaskbar = false;
             this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             this.Load += new System.EventHandler(this.AlertForm_Load);
+            this.Shown += new System.EventHandler(this.AlertForm_Shown);
             this.ResizeEnd += new System.EventHandler(this.AlertForm_ResizeEnd);
             this.MouseDown += new System.Windows.Forms.MouseEventHandler(this.AlertForm_MouseDown);
             this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.AlertForm_MouseMove);

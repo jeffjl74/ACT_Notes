@@ -14,13 +14,14 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
-using System.Security.Policy;
 using System.Runtime.InteropServices;
+using System.IO.Compression;
+using System.Xml.Linq;
 
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyVersion("1.5.0.0")]
 
 namespace ACT_Notes
 {
@@ -28,7 +29,7 @@ namespace ACT_Notes
 	{
         const string helpUlr = "https://github.com/jeffjl74/ACT_Notes#act-notes-plugin";
         
-        readonly bool debugMode = false;  //set to test using imports, mouse selection alerts, and the game not running
+        readonly bool debugMode = false;  //true to test using imports, mouse selection alerts, and the game not running
 
         // the data
         ZoneList zoneList = new ZoneList();
@@ -52,9 +53,15 @@ namespace ACT_Notes
 
         WindowsFormsSynchronizationContext mUiContext = new WindowsFormsSynchronizationContext();
         
+        // scroll bar control
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr SendMessage(IntPtr hWnd, UInt32 Msg, IntPtr wParam, IntPtr lParam);
         UInt32 WM_VSCROLL = 277;
+
+        // zip file support
+        private static Guid FolderDownloads = new Guid("374DE290-123F-4565-9164-39C4925E467B");
+        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+        private static extern int SHGetKnownFolderPath(ref Guid id, int flags, IntPtr token, out IntPtr path);
 
         // tree nodes
         class NodeLevels { public const int Group = 0; public const int Zone = 1; public const int Mob = 2; };
@@ -719,7 +726,7 @@ namespace ACT_Notes
             {
                 // only need to append if the update is different from the existing note
                 // and to compare, we need to remove line breaks the way XmlCopyForm does
-                string noBreaks = existingNote.Replace("\\par\r\n", "\\par ").Replace("\r\n", "").Replace("\r", "").Replace("\n", "");
+                string noBreaks = XmlCopyForm.RemoveEndLines(existingNote);
                 if (noBreaks != update)
                 {
                     // use a RichTextBox to merge RTF docs
@@ -2057,7 +2064,7 @@ namespace ACT_Notes
             xmlShareMenuClick(true);
         }
 
-        private void xmlShareMenuClick(bool deep)
+        private XmlCopyForm xmlShareMenuClick(bool deep, bool showForm=true)
         {
             if (clickedZoneNode != null)
             {
@@ -2122,11 +2129,16 @@ namespace ACT_Notes
                 {
                     XmlCopyForm form = new XmlCopyForm(noteGroup, zones, mob, zoneList.CompressImages, depth);
                     form.CompressCheckChanged += Form_CompressCheckChanged;
-                    form.Show();
-                    PositionChildForm(form, clickedZonePoint);
-                    form.TopMost = true;
+                    if (showForm)
+                    {
+                        form.Show();
+                        PositionChildForm(form, clickedZonePoint);
+                        form.TopMost = true;
+                    }
+                    return form;
                 }
             }
+            return null;
         }
 
         private bool ZoneHasNotes(Zone zone)
@@ -2261,14 +2273,14 @@ namespace ACT_Notes
             {
                 if (firstExport)
                 {
-                    saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    saveFileDialogRtf.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                     firstExport = false;
                 }
                 else
-                    saveFileDialog1.InitialDirectory = null; // will use "recents"
-                saveFileDialog1.FileName = clickedZoneNode.Text.Replace(":", String.Empty);
-                saveFileDialog1.RestoreDirectory = true;
-                if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+                    saveFileDialogRtf.InitialDirectory = null; // will use "recents"
+                saveFileDialogRtf.FileName = clickedZoneNode.Text.Replace(":", String.Empty);
+                saveFileDialogRtf.RestoreDirectory = true;
+                if (saveFileDialogRtf.ShowDialog() == DialogResult.OK)
                 {
                     RichTextBox rtb = new RichTextBox();
 
@@ -2310,11 +2322,11 @@ namespace ACT_Notes
                     }
                     try
                     {
-                        File.WriteAllText(saveFileDialog1.FileName, rtb.Rtf);
+                        File.WriteAllText(saveFileDialogRtf.FileName, rtb.Rtf);
                     }
                     catch (Exception exrtfex)
                     {
-                        SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Could not write file {saveFileDialog1.FileName}: {exrtfex.Message}");
+                        SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Could not write file {saveFileDialogRtf.FileName}: {exrtfex.Message}");
                     }
                 }
             }
@@ -2379,13 +2391,13 @@ namespace ACT_Notes
             {
                 if (firstExport)
                 {
-                    saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    saveFileDialogRtf.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                     firstExport = false;
                 }
                 else
-                    saveFileDialog1.InitialDirectory = null; // will use "recents"
+                    saveFileDialogRtf.InitialDirectory = null; // will use "recents"
 
-                if (openFileDialog1.ShowDialog() == DialogResult.OK)
+                if (openFileDialogRtf.ShowDialog() == DialogResult.OK)
                 {
                     RichTextBox rtb = new RichTextBox();
                     string existingNote = string.Empty;
@@ -2410,7 +2422,7 @@ namespace ACT_Notes
 
                     try
                     {
-                        string incomingNote = File.ReadAllText(openFileDialog1.FileName);
+                        string incomingNote = File.ReadAllText(openFileDialogRtf.FileName);
                         if (!string.IsNullOrEmpty(existingNote))
                         {
                             rtb.Rtf = existingNote;
@@ -2420,7 +2432,7 @@ namespace ACT_Notes
                     }
                     catch (Exception rdrtfex)
                     {
-                        SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Could not read {openFileDialog1.FileName}: {rdrtfex.Message}", "File Error");
+                        SimpleMessageBox.Show(ActGlobals.oFormActMain, $"Could not read {openFileDialogRtf.FileName}: {rdrtfex.Message}", "File Error");
                     }
 
                     if (ng != null)
@@ -2502,6 +2514,196 @@ namespace ACT_Notes
                 skipKillCheckToolStripMenuItem.Checked = now;
                 skipKillCheck = now;
             }
+        }
+
+        private void exportZIPToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            XmlCopyForm form = xmlShareMenuClick(true, false);
+            if (form != null)
+            {
+                int files = form.BuildMacroFiles();
+                if(files > 0)
+                {
+                    List<string> fileNames = new List<string>();
+                    string gamePath = ActGlobals.oFormActMain.GameMacroFolder;
+                    for (int i = 1; i <= files; i++)
+                    {
+                        string file = string.Format(XmlCopyForm.doFileName, i);
+                        fileNames.Add(Path.Combine(gamePath, file));
+                    }
+                    if(fileNames.Count > 0)
+                    {
+                        saveFileDialogZip.InitialDirectory = GetDownloadsPath();
+                        saveFileDialogZip.FileName = string.Empty;
+                        if (saveFileDialogZip.ShowDialog() == DialogResult.OK)
+                        {
+                            string zipFilePath = saveFileDialogZip.FileName;
+                            AddFilesToZip(zipFilePath, fileNames);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static string GetDownloadsPath()
+        {
+            if (Environment.OSVersion.Version.Major < 6)
+            {
+                return "";
+            }
+
+            IntPtr pathPtr = IntPtr.Zero;
+
+            try
+            {
+                SHGetKnownFolderPath(ref FolderDownloads, 0, IntPtr.Zero, out pathPtr);
+                return Marshal.PtrToStringUni(pathPtr);
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(pathPtr);
+            }
+        }
+
+        private static void AddFilesToZip(string zipFilePath, List<string> fileNames)
+        {
+            try
+            {
+                using (FileStream zipToOpen = new FileStream(zipFilePath, FileMode.OpenOrCreate))
+                {
+                    using (ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Update))
+                    {
+                        foreach (var fileName in fileNames)
+                        {
+                            if (File.Exists(fileName))
+                            {
+                                var entryName = Path.GetFileName(fileName);
+                                var entry = archive.CreateEntry(entryName);
+                                using (var entryStream = entry.Open())
+                                {
+                                    using (var fileStream = new FileStream(fileName, FileMode.Open, FileAccess.Read))
+                                    {
+                                        fileStream.CopyTo(entryStream);
+                                    }
+                                }
+                                Debug.WriteLine($"Added {fileName} to {zipFilePath}");
+                            }
+                            else
+                            {
+                                SimpleMessageBox.Show(ActGlobals.oFormActMain, $"File not found: {fileName}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) 
+            {
+                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Zip file exception:\\line" + ex.Message);
+            }
+        }
+
+        private void importZIPToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            openFileDialogZip.InitialDirectory = GetDownloadsPath();
+            openFileDialogZip.FileName = string.Empty;
+            if(openFileDialogZip.ShowDialog() == DialogResult.OK)
+            {
+                string zipFilePath = openFileDialogZip.FileName;
+                if (IsZipValid(zipFilePath))
+                {
+                    Dictionary<string, string> fileContents = DecompressZipToStrings(zipFilePath);
+                    foreach (var entry in fileContents)
+                    {
+                        string[] lines = entry.Value.Split(
+                            new string[] { "\r\n", "\r", "\n" },
+                            StringSplitOptions.None
+                        );
+                        foreach (string line in lines)
+                        {
+                            if (string.IsNullOrEmpty(line)) continue;
+
+                            try
+                            {
+                                string xline = "<root>\n" + line + "\n</root>";
+                                Dictionary<string, string> elems = ConvertXmlToDictionary(xline);
+                                XmlSnippetEventArgs args = new XmlSnippetEventArgs(XmlSnippetType, elems, line);
+                                OFormActMain_XmlSnippetAdded(null, args);
+                            }
+                            catch
+                            {
+                                SimpleMessageBox.Show(ActGlobals.oFormActMain, "Problem unzipping the file");
+                            }
+                        }
+                    }
+                }
+                else
+                    SimpleMessageBox.Show(ActGlobals.oFormActMain, $"{zipFilePath} is not a Notes zip file");
+            }
+        }
+
+        private static bool IsZipValid(string path)
+        {
+            try
+            {
+                using (var zipFile = ZipFile.OpenRead(path))
+                {
+                    if(zipFile.Entries.Count > 0)
+                    {
+                        if (zipFile.Entries[0].FullName.StartsWith("note-macro"))
+                            return true;
+                    }
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public static Dictionary<string, string> ConvertXmlToDictionary(string xmlString)
+        {
+            var dictionary = new Dictionary<string, string>();
+            XElement root = XElement.Parse(xmlString);
+
+            foreach (XElement element in root.Elements())
+            {
+                foreach (XAttribute attribute in element.Attributes())
+                {
+                    dictionary[attribute.Name.ToString()] = attribute.Value;
+                }
+            }
+
+            return dictionary;
+        }
+
+        private static Dictionary<string, string> DecompressZipToStrings(string zipFilePath)
+        {
+            var fileContents = new Dictionary<string, string>();
+
+            try
+            {
+                using (FileStream zipToOpen = new FileStream(zipFilePath, FileMode.Open))
+                {
+                    using (ZipArchive archive = new ZipArchive(zipToOpen, ZipArchiveMode.Read))
+                    {
+                        foreach (ZipArchiveEntry entry in archive.Entries)
+                        {
+                            using (StreamReader reader = new StreamReader(entry.Open()))
+                            {
+                                string content = reader.ReadToEnd();
+                                fileContents[entry.FullName] = content;
+                                Debug.WriteLine($"Read contents of {entry.FullName}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SimpleMessageBox.Show(ActGlobals.oFormActMain, "File exepction:\\line " + ex.Message);
+            }
+            return fileContents;
         }
 
         #endregion Tree Context Menu
