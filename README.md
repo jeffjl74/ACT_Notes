@@ -12,7 +12,7 @@ An example is shown below.
 ![Overview](images/Overview.png)
 
 ## Version Notes
-_Version 1.5.0_
+_Version 1.5.0 and 1.5.1_
 * Added `Export to ZIP...` and `Import ZIP...` to the [context menu](#share-outside-of-the-game) on the group tree.
 * The mob name in the [alert](#alerts) pop-up can now be clicked to activate the Notes tab in ACT.
 * Fixed an encode/decode bug around certain end-of-line occurrences.

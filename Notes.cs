@@ -21,7 +21,7 @@ using System.Xml.Linq;
 [assembly: AssemblyTitle("Notes for zone mobs")]
 [assembly: AssemblyDescription("Organize notes for mobs")]
 [assembly: AssemblyCompany("Mineeme of Maj'Dul")]
-[assembly: AssemblyVersion("1.5.0.0")]
+[assembly: AssemblyVersion("1.5.1.0")]
 
 namespace ACT_Notes
 {
@@ -389,7 +389,7 @@ namespace ACT_Notes
                     Rectangle screen = Screen.GetWorkingArea(ActGlobals.oFormActMain);
                     DialogResult result = SimpleMessageBox.Show(new Point(screen.Width/2 - 100, screen.Height/2 - 100),
                           @"There is an update for the Notes plugin."
-                        + @"\line This update adds a top level folder to the zone tree. "
+                        + @"\line This update adds zip file export / import. "
                         + @"\line\line Update it now?"
                         + @"\line If there is an update to ACT"
                         + @"\line you should click No and update ACT first."

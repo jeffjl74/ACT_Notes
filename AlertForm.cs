@@ -143,39 +143,46 @@ namespace ACT_Notes
             Label label = sender as Label;
             if (label != null && (bool)label.Tag == true)
             {
-                // top label is a click-able ACT activator
-                List<ActPluginData> plugins = ActGlobals.oFormActMain.ActPlugins;
-                for (int i = 0; i < plugins.Count; i++)
+                try
                 {
-                    ActPluginData plugin = plugins[i];
-                    if (plugin.lblPluginTitle.Text == "Notes.dll")
+                    // top label is a click-able ACT activator
+                    List<ActPluginData> plugins = ActGlobals.oFormActMain.ActPlugins;
+                    for (int i = 0; i < plugins.Count; i++)
                     {
+                        ActPluginData plugin = plugins[i];
+                        if (plugin.lblPluginTitle.Text != "Notes.dll")
+                            continue;
+
                         //Debug.WriteLine("activating notes plugin tab");
                         Notes notes = (Notes)plugin.pluginObj;
                         TabControl pluginsTabControl = notes.Parent.Parent as TabControl;
-                        if (pluginsTabControl != null)
-                        {
-                            // select the Notes tab in the plugins tabs
-                            pluginsTabControl.SelectedIndex = i;
+                        if (pluginsTabControl == null)
+                            break;
 
-                            TabControl mainTabControl = pluginsTabControl.Parent.Parent as TabControl;
-                            if (mainTabControl != null)
+                        // select the Notes tab in the plugins tabs
+                        TabPage myTab = notes.Parent as TabPage;
+                        if (myTab == null)
+                            break;
+                        pluginsTabControl.SelectedTab = myTab;
+
+                        TabControl mainTabControl = pluginsTabControl.Parent.Parent as TabControl;
+                        if (mainTabControl != null)
+                        {
+                            for (int j = 0; j < mainTabControl.TabPages.Count; j++)
                             {
-                                for (int j = 0; j < mainTabControl.TabPages.Count; j++)
+                                var tab = mainTabControl.TabPages[j];
+                                if (tab.Text == "Plugins")
                                 {
-                                    var tab = mainTabControl.TabPages[j];
-                                    if (tab.Text == "Plugins")
-                                    {
-                                        // select the Plugins tab in ACT's tabs
-                                        mainTabControl.SelectedIndex = j;
-                                        break;
-                                    }
+                                    // select the Plugins tab in ACT's tabs
+                                    mainTabControl.SelectedTab = tab;
+                                    break;
                                 }
                             }
                         }
                         break;
                     }
                 }
+                catch { }
                 if (previousWindowHandle != IntPtr.Zero)
                 {
                     // restore focus to the previous window, likely the game
